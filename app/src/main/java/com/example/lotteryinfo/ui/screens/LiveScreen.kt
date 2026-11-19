@@ -58,41 +58,15 @@ private data class OfficialLiveSource(
 )
 
 private val OFFICIAL_SOURCES = listOf(
-    OfficialLiveSource("fc_live", "福彩直播", "https://lotto.sina.cn/video/fcopen/"),
-    OfficialLiveSource("tc_live", "体彩直播", "https://lotto.sina.cn/video/tcopen"),
-    OfficialLiveSource("fc_past", "福彩往期", "https://www.zhcw.com/spzb/kjspzb/ssq/"),
-    OfficialLiveSource("tc_past", "体彩往期", "https://sports.163.com/special/ticaiopen/")
+   OfficialLiveSource("fc_live", "福彩直播与往期", "https://lotto.sina.cn/video/fcopen/"),
+    OfficialLiveSource("tc_live", "体彩直播与往期", "https://lotto.sina.cn/video/tcopen")
 )
 
 // 注入到官网直播/往期页面的净化脚本：隐藏导航、广告、新闻、页脚二维码，只保留视频、倒计时与往期视频列表
 private const val PURIFY_PAGE_JS = """
 (function() {
   var css = `
-    header, nav, footer, .header, .nav, .footer, .top-bar, .topbar, .bottom-bar,
-    .ad, .ads, .advert, .banner, .qr, .qrcode, .ewm, .share, .comment, .comments,
-    .news, .related-news, .hot-news, .recommend, .breadcrumbs, .position,
-    aside, .sidebar, .right-bar, .copyright, .login-box, .download-app {
-      display: none !important;
-    }
-    html, body {
-      margin: 0 !important;
-      padding: 6px !important;
-      background: #111315 !important;
-      color: #F5F7FA !important;
-      font-size: 17px !important;
-      font-weight: 600 !important;
-      max-width: 100% !important;
-      overflow-x: hidden !important;
-    }
-    video, .video-box, .player, .video-wrap, iframe {
-      width: 100% !important;
-      max-width: 100% !important;
-      min-height: 240px !important;
-    }
-    a, span, p, li, div {
-      font-size: 16px !important;
-      line-height: 1.5 !important;
-    }
+    header, nav, footer, .app-guide, .download-app, .ad, .copyright { display: none !important; } html, body { margin: 0 !important; max-width: 100% !important; overflow-x: hidden !important; } video, .video-box, .player, .video-wrap, iframe { width: 100% !important; max-width: 100% !important; min-height: 240px !important; }
   `;
   var style = document.getElementById('apk-purify-style');
   if (!style) {
@@ -101,7 +75,8 @@ private const val PURIFY_PAGE_JS = """
     document.head.appendChild(style);
   }
   style.innerHTML = css;
-
+  document.querySelectorAll('a, div, section, button, span').forEach(function(el) { var t = (el.innerText || '').trim(); if (t.length > 0 && t.length < 30 && t.indexOf('APP专享') !== -1) { el.style.display = 'none'; } });
+  
   // 确保页面内所有视频支持内联播放与控制条
   document.querySelectorAll('video').forEach(function(v) {
     v.setAttribute('controls', 'controls');
@@ -110,6 +85,8 @@ private const val PURIFY_PAGE_JS = """
   });
 })();
 """
+
+private fun buildFullscreenJs(enable: Boolean): String = if (enable) "(function(){var s=document.getElementById('apk-fullscreen-style');if(!s){s=document.createElement('style');s.id='apk-fullscreen-style';document.head.appendChild(s);}s.innerHTML='video,.video-box,.live-box,.player-box,.video-wrap,iframe{position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100vh!important;z-index:999999!important;background:#000!important;}';})();" else "(function(){var s=document.getElementById('apk-fullscreen-style');if(s){s.remove();}})();"    
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -222,7 +199,7 @@ fun LiveScreen(
                 }
 
                 FilledTonalIconButton(
-                    onClick = { onFullscreenChange(true) },
+                    onClick = { webViewRef?.evaluateJavascript(buildFullscreenJs(true), null); onFullscreenChange(true) },
                     modifier = Modifier.size(40.dp),
                     colors = IconButtonDefaults.filledTonalIconButtonColors(
                         containerColor = Color(0xFF2B2F36),
@@ -326,7 +303,8 @@ fun LiveScreen(
                 FilledTonalIconButton(
                     onClick = {
                         if (customVideoView != null) exitVideoCustomView()
-                        onFullscreenChange(false)
+                       webViewRef?.evaluateJavascript(buildFullscreenJs(false), null)
+                       onFullscreenChange(false)
                     },
                     colors = IconButtonDefaults.filledTonalIconButtonColors(
                         containerColor = Color.Black.copy(alpha = 0.65f),
