@@ -180,7 +180,7 @@ fun HistoryScreen(
             listContent(Modifier.fillMaxSize())
         }
     }
-        }
+       
     }
 }
 
