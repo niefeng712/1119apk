@@ -2,6 +2,8 @@ package com.example.lotteryinfo.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -44,12 +46,13 @@ import com.example.lotteryinfo.ui.theme.GoldAccent
 @Composable
 fun HomeScreen(
     sizeClass: ScreenSizeClass,
+    onOpenHistory: (LotteryType) -> Unit,
     onOpenTrend: (LotteryType) -> Unit,
     onOpenLive: () -> Unit
 ) {
     var selectedOrg by remember { mutableStateOf(LotteryOrg.ALL) }
     var draws by remember { mutableStateOf<List<LotteryDraw>>(emptyList()) }
-    var statusText by remember { mutableStateOf("正在从官方公开接口同步开奖数据...") }
+    var statusText by remember { mutableStateOf("正在同步福彩与体彩全部玩法最新开奖...") }
     var isLoading by remember { mutableStateOf(true) }
     var refreshTrigger by remember { mutableIntStateOf(0) }
 
@@ -115,6 +118,7 @@ fun HomeScreen(
             items(filteredDraws) { draw ->
                 LatestDrawCard(
                     draw = draw,
+                    onOpenHistory = { onOpenHistory(draw.lotteryType) },
                     onOpenTrend = { onOpenTrend(draw.lotteryType) },
                     onOpenLive = onOpenLive
                 )
@@ -123,13 +127,15 @@ fun HomeScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun LatestDrawCard(
     draw: LotteryDraw,
+    onOpenHistory: () -> Unit,
     onOpenTrend: () -> Unit,
     onOpenLive: () -> Unit
 ) {
-    val twoDigits = draw.lotteryType != LotteryType.FC3D && draw.lotteryType != LotteryType.PL3
+    val twoDigits = !draw.lotteryType.isDigitGame
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -177,9 +183,11 @@ private fun LatestDrawCard(
                 Text(
                     text = draw.lotteryType.drawSchedule,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
+                    color = Color.Gray,
+                    modifier = Modifier.weight(1f)
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AssistChip(onClick = onOpenHistory, label = { Text("历史开奖") })
                     AssistChip(onClick = onOpenTrend, label = { Text("走势图") })
                     AssistChip(onClick = onOpenLive, label = { Text("看直播") })
                 }

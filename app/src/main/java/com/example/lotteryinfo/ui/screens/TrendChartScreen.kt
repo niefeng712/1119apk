@@ -13,8 +13,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -22,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -47,29 +49,39 @@ fun TrendChartScreen(
 ) {
     var selectedType by remember(initialType) { mutableStateOf(initialType) }
     var showBlueZone by remember { mutableStateOf(false) }
+    var selectedDigitPos by remember { mutableIntStateOf(0) }
     var draws by remember { mutableStateOf<List<LotteryDraw>>(emptyList()) }
+    var statusText by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(selectedType) {
         isLoading = true
-        draws = LotteryRepository.fetchHistoryByType(selectedType, count = 25).draws
+        showBlueZone = false
+        selectedDigitPos = 0
+        val res = LotteryRepository.fetchHistoryByType(selectedType, pageNo = 1, pageSize = 100)
+        draws = res.draws
+        statusText = res.statusMessage
         isLoading = false
     }
 
     val hasBlue = selectedType.blueMax > 0
-    if (!hasBlue && showBlueZone) {
-        showBlueZone = false
+    val isDigit = selectedType.isDigitGame
+    val maxNumber = when {
+        showBlueZone && hasBlue -> selectedType.blueMax
+        else -> selectedType.redMax
     }
-
-    val maxNumber = if (showBlueZone && hasBlue) selectedType.blueMax else selectedType.redMax
-    val startNumber = if (selectedType == LotteryType.FC3D || selectedType == LotteryType.PL3) 0 else 1
+    val startNumber = if (isDigit) 0 else 1
     val totalCols = maxNumber - startNumber + 1
     val ballColor = if (showBlueZone) BlueBallColor else RedBallColor
+    val twoDigits = !isDigit
 
-    // 9寸–14寸平板采用更宽敞的单元格，提升大屏可读性
-    val cellWidth = if (sizeClass == ScreenSizeClass.EXPANDED) 38.dp else 32.dp
-    val cellHeight = if (sizeClass == ScreenSizeClass.EXPANDED) 38.dp else 34.dp
-    val issueColWidth = if (sizeClass == ScreenSizeClass.COMPACT) 80.dp else 96.dp
+    val cellWidth = when {
+        selectedType == LotteryType.KL8 -> 34.dp
+        sizeClass == ScreenSizeClass.EXPANDED -> 44.dp
+        else -> 38.dp
+    }
+    val cellHeight = if (sizeClass == ScreenSizeClass.EXPANDED) 42.dp else 38.dp
+    val issueColWidth = if (sizeClass == ScreenSizeClass.COMPACT) 96.dp else 112.dp
 
     Column(
         modifier = Modifier
@@ -80,6 +92,21 @@ fun TrendChartScreen(
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         }
 
+        // 彩种选择栏
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.horizontalScroll(rememberScrollState())
+        ) {
+            LotteryType.entries.forEach { type ->
+                FilterChip(
+                    selected = selectedType == type,
+                    onClick = { selectedType = type },
+                    label = { Text(type.displayName) }
+                )
+            }
+        }
+
+        // 分区 / 位数切换与数据量提示
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -89,17 +116,25 @@ fun TrendChartScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.horizontalScroll(rememberScrollState())
             ) {
-                LotteryType.entries.forEach { type ->
-                    FilterChip(
-                        selected = selectedType == type,
-                        onClick = { selectedType = type },
-                        label = { Text(type.displayName) }
-                    )
-                }
-            }
-
-            if (hasBlue && sizeClass != ScreenSizeClass.COMPACT) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (isDigit) {
+                    val posCount = if (selectedType == LotteryType.QXC) 7 else selectedType.digitCount
+                    for (pos in 0 until posCount) {
+                        val label = if (selectedType == LotteryType.QXC && pos == 6) "第7位(蓝)"
+                        else "第${pos + 1}位"
+                        FilterChip(
+                            selected = (!showBlueZone && selectedDigitPos == pos) || (showBlueZone && pos == 6),
+                            onClick = {
+                                if (selectedType == LotteryType.QXC && pos == 6) {
+                                    showBlueZone = true
+                                } else {
+                                    showBlueZone = false
+                                    selectedDigitPos = pos
+                                }
+                            },
+                            label = { Text(label) }
+                        )
+                    }
+                } else if (hasBlue) {
                     FilterChip(
                         selected = !showBlueZone,
                         onClick = { showBlueZone = false },
@@ -112,65 +147,72 @@ fun TrendChartScreen(
                     )
                 }
             }
-        }
 
-        if (hasBlue && sizeClass == ScreenSizeClass.COMPACT) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = !showBlueZone,
-                    onClick = { showBlueZone = false },
-                    label = { Text("红球走势") }
-                )
-                FilterChip(
-                    selected = showBlueZone,
-                    onClick = { showBlueZone = true },
-                    label = { Text("蓝球走势") }
+            if (statusText.isNotBlank()) {
+                Text(
+                    text = statusText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
+        // 统一横向滚动容器：保证表头与所有期号行完美对齐，不截断、不漂移
         val hScroll = rememberScrollState()
-        val vScroll = rememberScrollState()
-        val twoDigits = selectedType != LotteryType.FC3D && selectedType != LotteryType.PL3
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.White)
-                .verticalScroll(vScroll)
-        ) {
-            Row(modifier = Modifier.background(Color(0xFFEDF0F5))) {
-                Text(
-                    text = "期号",
-                    modifier = Modifier
-                        .width(issueColWidth)
-                        .height(cellHeight)
-                        .padding(top = 8.dp),
-                    textAlign = TextAlign.Center,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Row(modifier = Modifier.horizontalScroll(hScroll)) {
-                    for (num in startNumber..maxNumber) {
+        Row(modifier = Modifier.fillMaxSize().background(Color.White)) {
+            // 左侧固定「期号」列 + 右侧「号码网格」同步纵向 LazyColumn
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                // 固定表头行
+                item {
+                    Row(modifier = Modifier.background(Color(0xFFEDF0F5))) {
                         Text(
-                            text = if (twoDigits) num.toString().padStart(2, '0') else num.toString(),
+                            text = "期号",
                             modifier = Modifier
-                                .width(cellWidth)
+                                .width(issueColWidth)
                                 .height(cellHeight)
-                                .padding(top = 8.dp),
+                                .padding(top = 7.dp),
                             textAlign = TextAlign.Center,
-                            fontSize = 12.sp,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.Bold
                         )
+                        Row(modifier = Modifier.horizontalScroll(hScroll)) {
+                            for (num in startNumber..maxNumber) {
+                                Text(
+                                    text = if (twoDigits) num.toString().padStart(2, '0') else num.toString(),
+                                    modifier = Modifier
+                                        .width(cellWidth)
+                                        .height(cellHeight)
+                                        .padding(top = 7.dp),
+                                    textAlign = TextAlign.Center,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
                 }
-            }
 
-            Row {
-                Column(modifier = Modifier.width(issueColWidth)) {
-                    draws.forEach { draw ->
+                // 每一期数据行
+                itemsIndexed(draws) { index, draw ->
+                    val rowBg = if (index % 2 == 0) Color.White else Color(0xFFF8F9FB)
+                    val targets: List<Int> = when {
+                        showBlueZone -> draw.blueBalls
+                        isDigit -> listOfNotNull(draw.redBalls.getOrNull(selectedDigitPos))
+                        else -> draw.redBalls
+                    }
+                    val prevTargets: List<Int> = if (index > 0) {
+                        val prev = draws[index - 1]
+                        when {
+                            showBlueZone -> prev.blueBalls
+                            isDigit -> listOfNotNull(prev.redBalls.getOrNull(selectedDigitPos))
+                            else -> emptyList()
+                        }
+                    } else emptyList()
+
+                    Row(modifier = Modifier.background(rowBg)) {
                         Box(
                             modifier = Modifier
                                 .width(issueColWidth)
@@ -179,83 +221,71 @@ fun TrendChartScreen(
                         ) {
                             Text(
                                 text = draw.issue,
-                                fontSize = 12.sp,
-                                color = Color(0xFF444746)
+                                fontSize = 15.sp,
+                                color = Color(0xFF1F2329),
+                                fontWeight = FontWeight.Bold
                             )
                         }
-                    }
-                }
 
-                Box(modifier = Modifier.horizontalScroll(hScroll)) {
-                    val gridWidth = cellWidth * totalCols
-                    val gridHeight = cellHeight * draws.size
+                        Box(modifier = Modifier.horizontalScroll(hScroll)) {
+                            val gridWidth = cellWidth * totalCols
+                            Canvas(
+                                modifier = Modifier
+                                    .width(gridWidth)
+                                    .height(cellHeight)
+                            ) {
+                                val cw = cellWidth.toPx()
+                                val ch = cellHeight.toPx()
+                                val lineColor = Color(0xFFE6E9EE)
 
-                    Canvas(
-                        modifier = Modifier
-                            .width(gridWidth)
-                            .height(gridHeight)
-                    ) {
-                        val cw = cellWidth.toPx()
-                        val ch = cellHeight.toPx()
-                        val lineColor = Color(0xFFE0E3E7)
+                                // 网格线
+                                for (c in 0..totalCols) {
+                                    val x = c * cw
+                                    drawLine(lineColor, Offset(x, 0f), Offset(x, ch), strokeWidth = 1f)
+                                }
+                                drawLine(lineColor, Offset(0f, ch), Offset(size.width, ch), strokeWidth = 1f)
 
-                        for (c in 0..totalCols) {
-                            val x = c * cw
-                            drawLine(lineColor, Offset(x, 0f), Offset(x, size.height), strokeWidth = 1f)
-                        }
-                        for (r in 0..draws.size) {
-                            val y = r * ch
-                            drawLine(lineColor, Offset(0f, y), Offset(size.width, y), strokeWidth = 1f)
-                        }
-
-                        if (showBlueZone) {
-                            val points = draws.mapIndexedNotNull { rowIndex, draw ->
-                                val target = draw.blueBalls.firstOrNull() ?: return@mapIndexedNotNull null
-                                val colIndex = target - startNumber
-                                Offset((colIndex + 0.5f) * cw, (rowIndex + 0.5f) * ch)
-                            }
-                            for (i in 0 until points.size - 1) {
-                                drawLine(
-                                    color = ballColor.copy(alpha = 0.6f),
-                                    start = points[i],
-                                    end = points[i + 1],
-                                    strokeWidth = 3f
-                                )
-                            }
-                        }
-
-                        draws.forEachIndexed { rowIndex, draw ->
-                            val targets = if (showBlueZone) draw.blueBalls else draw.redBalls
-                            targets.forEach { num ->
-                                val colIndex = num - startNumber
-                                if (colIndex in 0 until totalCols) {
-                                    drawCircle(
-                                        color = ballColor,
-                                        radius = (minOf(cw, ch) * 0.36f),
-                                        center = Offset((colIndex + 0.5f) * cw, (rowIndex + 0.5f) * ch)
+                                // 与上一期连接趋势折线（单球/蓝球/数字彩位次）
+                                val currVal = targets.firstOrNull()
+                                val prevVal = prevTargets.firstOrNull()
+                                if ((showBlueZone || isDigit) && currVal != null && prevVal != null) {
+                                    val x1 = (prevVal - startNumber + 0.5f) * cw
+                                    val x2 = (currVal - startNumber + 0.5f) * cw
+                                    drawLine(
+                                        color = ballColor.copy(alpha = 0.55f),
+                                        start = Offset(x1, -ch * 0.5f),
+                                        end = Offset(x2, ch * 0.5f),
+                                        strokeWidth = 3f
                                     )
                                 }
-                            }
-                        }
-                    }
 
-                    Column {
-                        draws.forEach { draw ->
-                            val targets = (if (showBlueZone) draw.blueBalls else draw.redBalls).toSet()
+                                // 绘制中奖球圆点
+                                targets.forEach { num ->
+                                    val colIndex = num - startNumber
+                                    if (colIndex in 0 until totalCols) {
+                                        drawCircle(
+                                            color = ballColor,
+                                            radius = minOf(cw, ch) * 0.36f,
+                                            center = Offset((colIndex + 0.5f) * cw, ch * 0.5f)
+                                        )
+                                    }
+                                }
+                            }
+
                             Row {
+                                val targetSet = targets.toSet()
                                 for (num in startNumber..maxNumber) {
-                                    val hit = targets.contains(num)
                                     Box(
                                         modifier = Modifier
                                             .width(cellWidth)
                                             .height(cellHeight),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        if (hit) {
+                                        if (targetSet.contains(num)) {
                                             Text(
                                                 text = if (twoDigits) num.toString().padStart(2, '0') else num.toString(),
                                                 color = Color.White,
-                                                fontSize = 11.sp,
+                                                fontSize = 14.sp,
                                                 fontWeight = FontWeight.Bold
                                             )
                                         }

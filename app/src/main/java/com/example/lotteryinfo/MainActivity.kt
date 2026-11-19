@@ -65,6 +65,7 @@ fun LotteryMainApp() {
     val sizeClass = rememberScreenSizeClass()
     var selectedTab by remember { mutableIntStateOf(0) }
     var trendLotteryType by remember { mutableStateOf(LotteryType.SSQ) }
+    var historyLotteryType by remember { mutableStateOf(LotteryType.SSQ) }
     var isLiveFullscreen by remember { mutableStateOf(false) }
 
     val tabs = listOf(
@@ -74,21 +75,15 @@ fun LotteryMainApp() {
         NavTab("历史", "历史开奖", Icons.Default.History)
     )
 
-    // 直播全屏时隐藏所有顶部/侧边/底部导航栏，独占整个屏幕
-    if (selectedTab == 1 && isLiveFullscreen) {
-        LiveScreen(
-            sizeClass = sizeClass,
-            isFullscreen = true,
-            onFullscreenChange = { isLiveFullscreen = it }
-        )
-        return
-    }
-
-    val content: @Composable (Modifier) -> Unit = { mod ->
+    val mainContent: @Composable (Modifier) -> Unit = { mod ->
         Box(modifier = mod.fillMaxSize()) {
             when (selectedTab) {
                 0 -> HomeScreen(
                     sizeClass = sizeClass,
+                    onOpenHistory = { type ->
+                        historyLotteryType = type
+                        selectedTab = 3
+                    },
                     onOpenTrend = { type ->
                         trendLotteryType = type
                         selectedTab = 2
@@ -96,14 +91,19 @@ fun LotteryMainApp() {
                     onOpenLive = { selectedTab = 1 }
                 )
                 1 -> LiveScreen(
-                    sizeClass = sizeClass,
-                    isFullscreen = false,
+                    isFullscreen = isLiveFullscreen,
                     onFullscreenChange = { isLiveFullscreen = it }
                 )
                 2 -> TrendChartScreen(sizeClass = sizeClass, initialType = trendLotteryType)
-                3 -> HistoryScreen(sizeClass = sizeClass)
+                3 -> HistoryScreen(sizeClass = sizeClass, initialType = historyLotteryType)
             }
         }
+    }
+
+    // 关键修复：全屏时在同一布局树层级隐藏外围导航框架，不销毁/重建 LiveScreen 内的 WebView
+    if (selectedTab == 1 && isLiveFullscreen) {
+        mainContent(Modifier.fillMaxSize())
+        return
     }
 
     when (sizeClass) {
@@ -119,7 +119,10 @@ fun LotteryMainApp() {
                         tabs.forEachIndexed { index, tab ->
                             NavigationDrawerItem(
                                 selected = selectedTab == index,
-                                onClick = { selectedTab = index },
+                                onClick = {
+                                    isLiveFullscreen = false
+                                    selectedTab = index
+                                },
                                 icon = { Icon(tab.icon, contentDescription = tab.label) },
                                 label = { Text(tab.title) },
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
@@ -129,40 +132,58 @@ fun LotteryMainApp() {
                 }
             ) {
                 Scaffold(
-                    topBar = { TopAppBar(title = { Text(tabs[selectedTab].title) }) }
+                    topBar = {
+                        if (selectedTab != 1) {
+                            TopAppBar(title = { Text(tabs[selectedTab].title) })
+                        }
+                    }
                 ) { innerPadding ->
-                    content(Modifier.padding(innerPadding))
+                    mainContent(Modifier.padding(innerPadding))
                 }
             }
         }
         ScreenSizeClass.MEDIUM -> {
             Scaffold(
-                topBar = { TopAppBar(title = { Text(tabs[selectedTab].title) }) }
+                topBar = {
+                    if (selectedTab != 1) {
+                        TopAppBar(title = { Text(tabs[selectedTab].title) })
+                    }
+                }
             ) { innerPadding ->
                 Row(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
                     NavigationRail {
                         tabs.forEachIndexed { index, tab ->
                             NavigationRailItem(
                                 selected = selectedTab == index,
-                                onClick = { selectedTab = index },
+                                onClick = {
+                                    isLiveFullscreen = false
+                                    selectedTab = index
+                                },
                                 icon = { Icon(tab.icon, contentDescription = tab.label) },
                                 label = { Text(tab.label) }
                             )
                         }
                     }
-                    content(Modifier.weight(1f))
+                    mainContent(Modifier.weight(1f))
                 }
             }
         }
         ScreenSizeClass.COMPACT -> {
             Scaffold(
-                topBar = { TopAppBar(title = { Text(tabs[selectedTab].title) }) },
+                topBar = {
+                    if (selectedTab != 1) {
+                        TopAppBar(title = { Text(tabs[selectedTab].title) })
+                    }
+                },
                 bottomBar = {
                     NavigationBar {
                         tabs.forEachIndexed { index, tab ->
                             NavigationBarItem(
                                 selected = selectedTab == index,
-                                onClick = { selectedTab = index },
+                                onClick = {
+                                    isLiveFullscreen = false
+                                    selectedTab = index
+                                },
                                 icon = { Icon(tab.icon, contentDescription = tab.label) },
                                 label = { Text(tab.label) }
                             )
@@ -170,7 +191,7 @@ fun LotteryMainApp() {
                     }
                 }
             ) { innerPadding ->
-                content(Modifier.padding(innerPadding))
+                mainContent(Modifier.padding(innerPadding))
             }
         }
     }
