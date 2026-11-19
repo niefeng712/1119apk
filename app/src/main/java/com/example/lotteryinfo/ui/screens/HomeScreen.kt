@@ -15,12 +15,14 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material3.AssistChip
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -34,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.lotteryinfo.data.LotteryRepository
 import com.example.lotteryinfo.model.LotteryDraw
@@ -43,6 +46,7 @@ import com.example.lotteryinfo.ui.components.LotteryBallRow
 import com.example.lotteryinfo.ui.layout.ScreenSizeClass
 import com.example.lotteryinfo.ui.theme.GoldAccent
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(
     sizeClass: ScreenSizeClass,
@@ -52,7 +56,7 @@ fun HomeScreen(
 ) {
     var selectedOrg by remember { mutableStateOf(LotteryOrg.ALL) }
     var draws by remember { mutableStateOf<List<LotteryDraw>>(emptyList()) }
-    var statusText by remember { mutableStateOf("正在同步福彩与体彩全部玩法最新开奖...") }
+    var statusText by remember { mutableStateOf("正在同步全部彩种最新开奖...") }
     var isLoading by remember { mutableStateOf(true) }
     var refreshTrigger by remember { mutableIntStateOf(0) }
 
@@ -72,7 +76,7 @@ fun HomeScreen(
     val columns = when (sizeClass) {
         ScreenSizeClass.COMPACT -> 1
         ScreenSizeClass.MEDIUM -> 2
-        ScreenSizeClass.EXPANDED -> 2
+        ScreenSizeClass.EXPANDED -> 3
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -84,14 +88,14 @@ fun HomeScreen(
             columns = GridCells.Fixed(columns),
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item(span = { GridItemSpan(columns) }) {
-                Row(
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         LotteryOrg.entries.forEach { org ->
@@ -106,7 +110,9 @@ fun HomeScreen(
                         Text(
                             text = statusText,
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color.Gray
+                            color = Color.Gray,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         TextButton(onClick = { refreshTrigger++ }) {
                             Text("刷新")
@@ -127,7 +133,6 @@ fun HomeScreen(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun LatestDrawCard(
     draw: LotteryDraw,
@@ -145,25 +150,25 @@ private fun LatestDrawCard(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "${draw.lotteryType.displayName} · 第 ${draw.issue} 期",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        text = draw.lotteryType.displayName,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold
                     )
                     Text(
-                        text = "${draw.lotteryType.org.label} | ${draw.drawDate}",
+                        text = "第 ${draw.issue} 期 · ${draw.drawDate}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray
+                        color = Color(0xFF5F6368)
                     )
                 }
                 Text(
-                    text = "奖池 ${draw.poolAmount}",
-                    style = MaterialTheme.typography.labelMedium,
+                    text = draw.poolAmount,
+                    style = MaterialTheme.typography.labelLarge,
                     color = GoldAccent,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.Bold
                 )
             }
 
@@ -174,22 +179,39 @@ private fun LatestDrawCard(
                 padTwoDigits = twoDigits
             )
 
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "${draw.lotteryType.org.label} · ${draw.lotteryType.drawSchedule}",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF5F6368)
+            )
+
             Spacer(modifier = Modifier.height(14.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = draw.lotteryType.drawSchedule,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray,
-                    modifier = Modifier.weight(1f)
-                )
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AssistChip(onClick = onOpenHistory, label = { Text("历史开奖") })
-                    AssistChip(onClick = onOpenTrend, label = { Text("走势图") })
-                    AssistChip(onClick = onOpenLive, label = { Text("看直播") })
+                FilledTonalButton(
+                    onClick = onOpenHistory,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp)
+                ) {
+                    Text("历史", maxLines = 1)
+                }
+                OutlinedButton(
+                    onClick = onOpenTrend,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp)
+                ) {
+                    Text("走势", maxLines = 1)
+                }
+                OutlinedButton(
+                    onClick = onOpenLive,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFC5221F)),
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp)
+                ) {
+                    Text("直播", maxLines = 1)
                 }
             }
         }

@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -22,7 +23,6 @@ import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.PermanentDrawerSheet
-import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -38,7 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.lotteryinfo.model.LotteryType
 import com.example.lotteryinfo.ui.layout.ScreenSizeClass
-import com.example.lotteryinfo.ui.layout.rememberScreenSizeClass
+import com.example.lotteryinfo.ui.layout.screenSizeClassFromWidth
 import com.example.lotteryinfo.ui.screens.HistoryScreen
 import com.example.lotteryinfo.ui.screens.HomeScreen
 import com.example.lotteryinfo.ui.screens.LiveScreen
@@ -62,7 +62,6 @@ private data class NavTab(val label: String, val title: String, val icon: ImageV
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LotteryMainApp() {
-    val sizeClass = rememberScreenSizeClass()
     var selectedTab by remember { mutableIntStateOf(0) }
     var trendLotteryType by remember { mutableStateOf(LotteryType.SSQ) }
     var historyLotteryType by remember { mutableStateOf(LotteryType.SSQ) }
@@ -75,123 +74,131 @@ fun LotteryMainApp() {
         NavTab("历史", "历史开奖", Icons.Default.History)
     )
 
-    val mainContent: @Composable (Modifier) -> Unit = { mod ->
-        Box(modifier = mod.fillMaxSize()) {
-            when (selectedTab) {
-                0 -> HomeScreen(
-                    sizeClass = sizeClass,
-                    onOpenHistory = { type ->
-                        historyLotteryType = type
-                        selectedTab = 3
-                    },
-                    onOpenTrend = { type ->
-                        trendLotteryType = type
-                        selectedTab = 2
-                    },
-                    onOpenLive = { selectedTab = 1 }
-                )
-                1 -> LiveScreen(
-                    isFullscreen = isLiveFullscreen,
-                    onFullscreenChange = { isLiveFullscreen = it }
-                )
-                2 -> TrendChartScreen(sizeClass = sizeClass, initialType = trendLotteryType)
-                3 -> HistoryScreen(sizeClass = sizeClass, initialType = historyLotteryType)
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val sizeClass = screenSizeClassFromWidth(maxWidth)
+        val hideChrome = selectedTab == 1 && isLiveFullscreen
+
+        val mainContent: @Composable (Modifier) -> Unit = { mod ->
+            Box(modifier = mod.fillMaxSize()) {
+                when (selectedTab) {
+                    0 -> HomeScreen(
+                        sizeClass = sizeClass,
+                        onOpenHistory = { type ->
+                            historyLotteryType = type
+                            selectedTab = 3
+                        },
+                        onOpenTrend = { type ->
+                            trendLotteryType = type
+                            selectedTab = 2
+                        },
+                        onOpenLive = { selectedTab = 1 }
+                    )
+                    1 -> LiveScreen(
+                        sizeClass = sizeClass,
+                        isFullscreen = isLiveFullscreen,
+                        onFullscreenChange = { isLiveFullscreen = it }
+                    )
+                    2 -> TrendChartScreen(sizeClass = sizeClass, initialType = trendLotteryType)
+                    3 -> HistoryScreen(sizeClass = sizeClass, initialType = historyLotteryType)
+                }
             }
         }
-    }
 
-    // 关键修复：全屏时在同一布局树层级隐藏外围导航框架，不销毁/重建 LiveScreen 内的 WebView
-    if (selectedTab == 1 && isLiveFullscreen) {
-        mainContent(Modifier.fillMaxSize())
-        return
-    }
-
-    when (sizeClass) {
-        ScreenSizeClass.EXPANDED -> {
-            PermanentNavigationDrawer(
-                drawerContent = {
-                    PermanentDrawerSheet(modifier = Modifier.width(200.dp)) {
-                        Text(
-                            text = "福彩体彩助手",
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(20.dp)
-                        )
-                        tabs.forEachIndexed { index, tab ->
-                            NavigationDrawerItem(
-                                selected = selectedTab == index,
-                                onClick = {
-                                    isLiveFullscreen = false
-                                    selectedTab = index
-                                },
-                                icon = { Icon(tab.icon, contentDescription = tab.label) },
-                                label = { Text(tab.title) },
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+        when (sizeClass) {
+            ScreenSizeClass.EXPANDED -> {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    if (!hideChrome) {
+                        PermanentDrawerSheet(modifier = Modifier.width(210.dp)) {
+                            Text(
+                                text = "福彩体彩助手",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.ExtraBold,
+                                modifier = Modifier.padding(20.dp)
                             )
+                            tabs.forEachIndexed { index, tab ->
+                                NavigationDrawerItem(
+                                    selected = selectedTab == index,
+                                    onClick = {
+                                        isLiveFullscreen = false
+                                        selectedTab = index
+                                    },
+                                    icon = { Icon(tab.icon, contentDescription = tab.label) },
+                                    label = { Text(tab.title) },
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                )
+                            }
                         }
                     }
+                    Scaffold(
+                        modifier = Modifier.weight(1f),
+                        topBar = {
+                            if (!hideChrome && selectedTab != 1) {
+                                TopAppBar(title = { Text(tabs[selectedTab].title) })
+                            }
+                        }
+                    ) { innerPadding ->
+                        mainContent(if (hideChrome) Modifier else Modifier.padding(innerPadding))
+                    }
                 }
-            ) {
+            }
+            ScreenSizeClass.MEDIUM -> {
                 Scaffold(
                     topBar = {
-                        if (selectedTab != 1) {
+                        if (!hideChrome && selectedTab != 1) {
                             TopAppBar(title = { Text(tabs[selectedTab].title) })
                         }
                     }
                 ) { innerPadding ->
-                    mainContent(Modifier.padding(innerPadding))
+                    Row(
+                        modifier = (if (hideChrome) Modifier else Modifier.padding(innerPadding))
+                            .fillMaxSize()
+                    ) {
+                        if (!hideChrome) {
+                            NavigationRail {
+                                tabs.forEachIndexed { index, tab ->
+                                    NavigationRailItem(
+                                        selected = selectedTab == index,
+                                        onClick = {
+                                            isLiveFullscreen = false
+                                            selectedTab = index
+                                        },
+                                        icon = { Icon(tab.icon, contentDescription = tab.label) },
+                                        label = { Text(tab.label) }
+                                    )
+                                }
+                            }
+                        }
+                        mainContent(Modifier.weight(1f))
+                    }
                 }
             }
-        }
-        ScreenSizeClass.MEDIUM -> {
-            Scaffold(
-                topBar = {
-                    if (selectedTab != 1) {
-                        TopAppBar(title = { Text(tabs[selectedTab].title) })
-                    }
-                }
-            ) { innerPadding ->
-                Row(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-                    NavigationRail {
-                        tabs.forEachIndexed { index, tab ->
-                            NavigationRailItem(
-                                selected = selectedTab == index,
-                                onClick = {
-                                    isLiveFullscreen = false
-                                    selectedTab = index
-                                },
-                                icon = { Icon(tab.icon, contentDescription = tab.label) },
-                                label = { Text(tab.label) }
-                            )
+            ScreenSizeClass.COMPACT -> {
+                Scaffold(
+                    topBar = {
+                        if (!hideChrome && selectedTab != 1) {
+                            TopAppBar(title = { Text(tabs[selectedTab].title) })
+                        }
+                    },
+                    bottomBar = {
+                        if (!hideChrome) {
+                            NavigationBar {
+                                tabs.forEachIndexed { index, tab ->
+                                    NavigationBarItem(
+                                        selected = selectedTab == index,
+                                        onClick = {
+                                            isLiveFullscreen = false
+                                            selectedTab = index
+                                        },
+                                        icon = { Icon(tab.icon, contentDescription = tab.label) },
+                                        label = { Text(tab.label) }
+                                    )
+                                }
+                            }
                         }
                     }
-                    mainContent(Modifier.weight(1f))
+                ) { innerPadding ->
+                    mainContent(if (hideChrome) Modifier else Modifier.padding(innerPadding))
                 }
-            }
-        }
-        ScreenSizeClass.COMPACT -> {
-            Scaffold(
-                topBar = {
-                    if (selectedTab != 1) {
-                        TopAppBar(title = { Text(tabs[selectedTab].title) })
-                    }
-                },
-                bottomBar = {
-                    NavigationBar {
-                        tabs.forEachIndexed { index, tab ->
-                            NavigationBarItem(
-                                selected = selectedTab == index,
-                                onClick = {
-                                    isLiveFullscreen = false
-                                    selectedTab = index
-                                },
-                                icon = { Icon(tab.icon, contentDescription = tab.label) },
-                                label = { Text(tab.label) }
-                            )
-                        }
-                    }
-                }
-            ) { innerPadding ->
-                mainContent(Modifier.padding(innerPadding))
             }
         }
     }

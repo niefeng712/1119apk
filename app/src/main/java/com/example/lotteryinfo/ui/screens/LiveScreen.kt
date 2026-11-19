@@ -2,87 +2,174 @@ package com.example.lotteryinfo.ui.screens
 
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.view.View
-import android.view.ViewGroup
 import android.webkit.CookieManager
-import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
+import androidx.annotation.OptIn
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.example.lotteryinfo.data.LotteryRepository
+import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.ui.PlayerView
+import com.example.lotteryinfo.data.VideoEpisode
+import com.example.lotteryinfo.data.VideoRepository
+import com.example.lotteryinfo.ui.layout.ScreenSizeClass
 
 @SuppressLint("SetJavaScriptEnabled")
+@OptIn(UnstableApi::class)
 @Composable
 fun LiveScreen(
+    sizeClass: ScreenSizeClass,
     isFullscreen: Boolean,
     onFullscreenChange: (Boolean) -> Unit
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
-    val channels = remember { LotteryRepository.getLiveChannels() }
-    var activeChannel by remember { mutableStateOf(channels.first()) }
-    var webViewRef by remember { mutableStateOf<WebView?>(null) }
 
-    // 记录 HTML5 视频全屏自定义视图（挂载到 Activity 根窗口，避免 Compose 重组导致白屏）
-    var customVideoView by remember { mutableStateOf<View?>(null) }
-    var customVideoCallback by remember { mutableStateOf<WebChromeClient.CustomViewCallback?>(null) }
+    var isWelfare by remember { mutableStateOf(true) }
+    var episodes by remember { mutableStateOf<List<VideoEpisode>>(emptyList()) }
+    var activeEpisode by remember { mutableStateOf<VideoEpisode?>(null) }
+    var detectedStreamUrl by remember { mutableStateOf<String?>(null) }
+    var sniffTargetUrl by remember { mutableStateOf<String?>(null) }
+    var statusMessage by remember { mutableStateOf("正在提取开奖直播与往期视频...") }
+    var isLoading by remember { mutableStateOf(true) }
+    var refreshKey by remember { mutableIntStateOf(0) }
 
-    fun exitVideoCustomView() {
-        val decor = activity?.window?.decorView as? FrameLayout
-        customVideoView?.let { decor?.removeView(it) }
-        customVideoView = null
-        customVideoCallback?.onCustomViewHidden()
-        customVideoCallback = null
+    val dataSourceFactory = remember {
+        DefaultHttpDataSource.Factory()
+            .setUserAgent("Mozilla/5.0 (Linux; Android 14; Pad) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36")
+            .setAllowCrossProtocolRedirects(true)
     }
 
-    // 控制系统状态栏和导航栏显示/隐藏
+    val exoPlayer = remember {
+        ExoPlayer.Builder(context)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+            .build()
+    }
+
+    DisposableEffect(Unit) {
+        val listener = object : Player.Listener {
+            override fun onPlayerError(error: PlaybackException) {
+                statusMessage = "流媒体播放受限，可点右上角刷新重试"
+            }
+        }
+        exoPlayer.addListener(listener)
+        onDispose {
+            exoPlayer.removeListener(listener)
+            exoPlayer.release()
+        }
+    }
+
+    // 1. 拉取直播与往期视频目录
+    LaunchedEffect(isWelfare, refreshKey) {
+        isLoading = true
+        detectedStreamUrl = null
+        statusMessage = "正在获取视频列表..."
+        val list = VideoRepository.fetchVideoList(isWelfare)
+        episodes = list
+        activeEpisode = list.firstOrNull()
+        isLoading = false
+    }
+
+    // 2. 切换视频时先尝试直解析，若无直链则启动后台隐身嗅探实时带 Token 的 .m3u8/.mp4
+    LaunchedEffect(activeEpisode) {
+        val ep = activeEpisode ?: return@LaunchedEffect
+        isLoading = true
+        detectedStreamUrl = null
+        val direct = VideoRepository.resolveStreamUrl(ep)
+        if (!direct.isNullOrBlank()) {
+            detectedStreamUrl = direct
+        } else {
+            statusMessage = "正在后台解析实时视频流..."
+            sniffTargetUrl = ep.pageUrl
+        }
+        isLoading = false
+    }
+
+    // 3. 拿到流地址后喂给纯原生 ExoPlayer 播放
+    LaunchedEffect(detectedStreamUrl) {
+        val url = detectedStreamUrl ?: return@LaunchedEffect
+        val ep = activeEpisode
+        val cookie = CookieManager.getInstance().getCookie(ep?.pageUrl ?: url) ?: ""
+        val headers = buildMap {
+            put("Referer", ep?.referer ?: "https://lotto.sina.cn/")
+            if (cookie.isNotBlank()) put("Cookie", cookie)
+        }
+        dataSourceFactory.setDefaultRequestProperties(headers)
+        exoPlayer.setMediaItem(MediaItem.fromUri(url))
+        exoPlayer.prepare()
+        exoPlayer.playWhenReady = true
+        statusMessage = "正在播放：${ep?.title ?: "开奖视频"}"
+        sniffTargetUrl = null
+    }
+
+    // 控制全屏系统栏
     DisposableEffect(isFullscreen) {
         val window = activity?.window
         if (window != null) {
             val controller = WindowCompat.getInsetsController(window, window.decorView)
             controller.systemBarsBehavior =
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            if (isFullscreen) {
-                controller.hide(WindowInsetsCompat.Type.systemBars())
-            } else {
-                controller.show(WindowInsetsCompat.Type.systemBars())
-            }
+            if (isFullscreen) controller.hide(WindowInsetsCompat.Type.systemBars())
+            else controller.show(WindowInsetsCompat.Type.systemBars())
         }
         onDispose {
             val w = activity?.window
@@ -93,167 +180,194 @@ fun LiveScreen(
         }
     }
 
-    DisposableEffect(Unit) {
-        onDispose {
-            exitVideoCustomView()
-            webViewRef?.destroy()
-        }
+    BackHandler(enabled = isFullscreen) {
+        onFullscreenChange(false)
     }
 
-    BackHandler(enabled = isFullscreen || customVideoView != null || webViewRef?.canGoBack() == true) {
-        when {
-            customVideoView != null -> {
-                exitVideoCustomView()
-                onFullscreenChange(false)
-            }
-            isFullscreen -> onFullscreenChange(false)
-            webViewRef?.canGoBack() == true -> webViewRef?.goBack()
-        }
-    }
-
-    // 纯净直播画面容器（保持单个 WebView 实例不被重建，彻底解决全屏白屏与往期视频无法播放问题）
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-    ) {
+    // 后台 1dp 隐身嗅探器：不显示任何官网页面，只负责截获官网 JS 生成的带 Token .m3u8/.mp4 请求
+    if (!sniffTargetUrl.isNullOrBlank()) {
         AndroidView(
             factory = { ctx ->
                 WebView(ctx).apply {
-                    val cm = CookieManager.getInstance()
-                    cm.setAcceptCookie(true)
-                    cm.setAcceptThirdPartyCookies(this, true)
-
-                    settings.apply {
-                        javaScriptEnabled = true
-                        domStorageEnabled = true
-                        databaseEnabled = true
-                        allowFileAccess = true
-                        allowContentAccess = true
-                        javaScriptCanOpenWindowsAutomatically = true
-                        setSupportMultipleWindows(false)
-                        mediaPlaybackRequiresUserGesture = false
-                        mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                        useWideViewPort = true
-                        loadWithOverviewMode = true
-                        builtInZoomControls = true
-                        displayZoomControls = false
-                        userAgentString =
-                            "Mozilla/5.0 (Linux; Android 14; Pad) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-                    }
-
+                    CookieManager.getInstance().setAcceptCookie(true)
+                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.mediaPlaybackRequiresUserGesture = false
+                    settings.userAgentString =
+                        "Mozilla/5.0 (Linux; Android 14; Pad) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36"
                     webViewClient = object : WebViewClient() {
-                        override fun shouldOverrideUrlLoading(
+                        override fun shouldInterceptRequest(
                             view: WebView?,
                             request: WebResourceRequest?
-                        ): Boolean {
-                            val url = request?.url?.toString() ?: return false
-                            // 所有往期开奖视频与页面跳转均在当前 WebView 内打开，防止外跳失效
-                            if (url.startsWith("http://") || url.startsWith("https://")) {
-                                view?.loadUrl(url)
-                                return true
+                        ): WebResourceResponse? {
+                            val reqUrl = request?.url?.toString() ?: return null
+                            if (reqUrl.contains(".m3u8", ignoreCase = true) ||
+                                reqUrl.contains(".mp4", ignoreCase = true)
+                            ) {
+                                view?.post {
+                                    if (detectedStreamUrl == null) {
+                                        detectedStreamUrl = reqUrl
+                                    }
+                                }
                             }
-                            return false
+                            return super.shouldInterceptRequest(view, request)
                         }
                     }
-
-                    webChromeClient = object : WebChromeClient() {
-                        override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
-                            if (view == null) return
-                            exitVideoCustomView()
-                            customVideoView = view
-                            customVideoCallback = callback
-                            val decor = activity?.window?.decorView as? FrameLayout
-                            decor?.addView(
-                                view,
-                                FrameLayout.LayoutParams(
-                                    ViewGroup.LayoutParams.MATCH_PARENT,
-                                    ViewGroup.LayoutParams.MATCH_PARENT
-                                )
-                            )
-                            onFullscreenChange(true)
-                        }
-
-                        override fun onHideCustomView() {
-                            exitVideoCustomView()
-                            onFullscreenChange(false)
-                        }
-                    }
-
-                    loadUrl(activeChannel.webLiveUrl)
-                    webViewRef = this
+                    loadUrl(sniffTargetUrl!!)
                 }
             },
             update = { webView ->
-                if (webView.tag != activeChannel.id) {
-                    webView.tag = activeChannel.id
-                    webView.loadUrl(activeChannel.webLiveUrl)
+                if (webView.url != sniffTargetUrl) {
+                    webView.loadUrl(sniffTargetUrl!!)
                 }
             },
-            modifier = Modifier.fillMaxSize()
-        )
-
-        // 顶部悬浮精简频道切换栏（全屏时自动隐藏，留出纯享直播画面）
-        if (!isFullscreen) {
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(start = 12.dp, top = 10.dp, end = 104.dp)
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                channels.forEach { channel ->
-                    FilterChip(
-                        selected = channel.id == activeChannel.id,
-                        onClick = { activeChannel = channel },
-                        label = { Text(channel.title) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            containerColor = Color.Black.copy(alpha = 0.6f),
-                            labelColor = Color.White,
-                            selectedContainerColor = Color(0xFFC5221F),
-                            selectedLabelColor = Color.White
-                        )
-                    )
-                }
-            }
-        }
-
-        // 右上角刷新与全屏/退出全屏按钮
-        Row(
             modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .size(1.dp)
+                .alpha(0f)
+        )
+    }
+
+    val playerBox: @Composable (Modifier) -> Unit = { mod ->
+        Box(
+            modifier = mod
+                .clip(if (isFullscreen) RoundedCornerShape(0.dp) else RoundedCornerShape(12.dp))
+                .background(Color.Black),
+            contentAlignment = Alignment.Center
         ) {
-            if (!isFullscreen) {
-                FilledTonalIconButton(
-                    onClick = { webViewRef?.reload() },
-                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                        containerColor = Color.Black.copy(alpha = 0.6f),
-                        contentColor = Color.White
-                    )
-                ) {
-                    Icon(Icons.Default.Refresh, contentDescription = "刷新直播页")
+            AndroidView(
+                factory = { ctx ->
+                    PlayerView(ctx).apply {
+                        player = exoPlayer
+                        useController = true
+                        setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+
+            if (isLoading || (detectedStreamUrl == null && !sniffTargetUrl.isNullOrBlank())) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = Color.White)
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(text = statusMessage, color = Color.White, style = MaterialTheme.typography.bodyMedium)
                 }
             }
 
             FilledTonalIconButton(
-                onClick = {
-                    if (customVideoView != null) {
-                        exitVideoCustomView()
-                    }
-                    onFullscreenChange(!isFullscreen)
-                },
+                onClick = { onFullscreenChange(!isFullscreen) },
                 colors = IconButtonDefaults.filledTonalIconButtonColors(
                     containerColor = Color.Black.copy(alpha = 0.6f),
                     contentColor = Color.White
-                )
+                ),
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(12.dp)
             ) {
                 Icon(
                     imageVector = if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
                     contentDescription = if (isFullscreen) "退出全屏" else "全屏播放"
                 )
             }
+        }
+    }
+
+    if (isFullscreen) {
+        playerBox(Modifier.fillMaxSize())
+        return
+    }
+
+    val listPanel: @Composable (Modifier) -> Unit = { mod ->
+        Column(modifier = mod) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = isWelfare,
+                        onClick = { isWelfare = true },
+                        label = { Text("福彩视频") }
+                    )
+                    FilterChip(
+                        selected = !isWelfare,
+                        onClick = { isWelfare = false },
+                        label = { Text("体彩视频") }
+                    )
+                }
+                FilledTonalIconButton(onClick = { refreshKey++ }) {
+                    Icon(Icons.Default.Refresh, contentDescription = "刷新")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = statusMessage,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(episodes) { ep ->
+                    val selected = ep.id == activeEpisode?.id
+                    Card(
+                        onClick = { activeEpisode = ep },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.surface
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = ep.title,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Icon(
+                                imageVector = Icons.Default.PlayCircle,
+                                contentDescription = "播放",
+                                tint = if (selected) MaterialTheme.colorScheme.primary else Color.Gray
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (sizeClass != ScreenSizeClass.COMPACT) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            playerBox(Modifier.weight(0.65f).fillMaxHeight())
+            listPanel(Modifier.weight(0.35f).fillMaxHeight())
+        }
+    } else {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            playerBox(Modifier.fillMaxWidth().aspectRatio(16f / 9f))
+            listPanel(Modifier.weight(1f).fillMaxWidth())
         }
     }
 }
