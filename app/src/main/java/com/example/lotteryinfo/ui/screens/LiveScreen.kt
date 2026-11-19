@@ -91,7 +91,7 @@ fun LiveScreen(
     var sniffTargetUrl by remember { mutableStateOf<String?>(null) }
     var statusMessage by remember { mutableStateOf("正在提取开奖直播与往期视频...") }
     var isLoading by remember { mutableStateOf(true) }
-    var refreshKey by remember { mutableIntStateOf(0) }
+    var refreshKey by remember { mutableIntStateOf(0) }; var sniffTimedOut by remember { mutableStateOf(false) }; var countdownText by remember { mutableStateOf("00:00:00") }; LaunchedEffect(isWelfare) { while (true) { val now = java.util.Calendar.getInstance(); val target = java.util.Calendar.getInstance().apply { set(java.util.Calendar.HOUR_OF_DAY, 21); set(java.util.Calendar.MINUTE, if (isWelfare) 15 else 25); set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0); if (!after(now)) add(java.util.Calendar.DAY_OF_MONTH, 1) }; val diff = ((target.timeInMillis - now.timeInMillis) / 1000L).coerceAtLeast(0L); countdownText = String.format("%02d:%02d:%02d", diff / 3600L, (diff % 3600L) / 60L, diff % 60L); kotlinx.coroutines.delay(1000L) } }; LaunchedEffect(sniffTargetUrl, detectedStreamUrl, isLoading) { if (!isLoading && detectedStreamUrl == null && !sniffTargetUrl.isNullOrBlank()) { sniffTimedOut = false; kotlinx.coroutines.delay(6000L); if (detectedStreamUrl == null) { sniffTimedOut = true; statusMessage = "当前非开奖时段，可点击右侧列表中的视频测试播放与全屏" } } else { sniffTimedOut = false } }
 
     val dataSourceFactory = remember {
         DefaultHttpDataSource.Factory()
@@ -246,7 +246,7 @@ fun LiveScreen(
                 modifier = Modifier.fillMaxSize()
             )
 
-            if (isLoading || (detectedStreamUrl == null && !sniffTargetUrl.isNullOrBlank())) {
+            if (sniffTimedOut) { Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) { Text("距离下一次开奖直播还剩 $countdownText", color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center); Spacer(Modifier.height(8.dp)); Text("可点击右侧列表中的视频测试播放与全屏", color = Color.LightGray, style = MaterialTheme.typography.bodyMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center) } } else if (isLoading || (detectedStreamUrl == null && !sniffTargetUrl.isNullOrBlank())) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = Color.White)
                     Spacer(modifier = Modifier.height(10.dp))
@@ -288,12 +288,12 @@ fun LiveScreen(
                     FilterChip(
                         selected = isWelfare,
                         onClick = { isWelfare = true },
-                        label = { Text("福彩视频") }
+                        modifier = Modifier.weight(1f), label = { Text("福彩视频", maxLines = 1, softWrap = false) }
                     )
                     FilterChip(
                         selected = !isWelfare,
                         onClick = { isWelfare = false },
-                        label = { Text("体彩视频") }
+                        modifier = Modifier.weight(1f), label = { Text("体彩视频", maxLines = 1, softWrap = false) }
                     )
                 }
                 FilledTonalIconButton(onClick = { refreshKey++ }) {
@@ -349,7 +349,7 @@ fun LiveScreen(
         }
     }
 
-    if (sizeClass != ScreenSizeClass.COMPACT) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) { val isLandscapeWide = maxWidth > maxHeight && maxWidth >= 600.dp; if (isLandscapeWide) {
         Row(
             modifier = Modifier
                 .fillMaxSize()
@@ -369,5 +369,6 @@ fun LiveScreen(
             playerBox(Modifier.fillMaxWidth().aspectRatio(16f / 9f))
             listPanel(Modifier.weight(1f).fillMaxWidth())
         }
+    }
     }
 }
