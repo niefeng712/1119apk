@@ -143,14 +143,6 @@ fun TrendChartScreen(
                     )
                 }
             }
-
-            if (statusText.isNotBlank()) {
-                Text(
-                    text = statusText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
-                )
-            }
         }
 
         Spacer(modifier = Modifier.height(6.dp))
