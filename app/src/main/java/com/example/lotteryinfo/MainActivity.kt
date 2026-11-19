@@ -125,7 +125,7 @@ fun LotteryMainApp() {
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                                 )
                             }
-                        }
+                        } }
                if (!hideChrome && sizeClass == ScreenSizeClass.MEDIUM) {
                             NavigationRail {
                                 tabs.forEachIndexed { index, tab ->
@@ -142,8 +142,7 @@ fun LotteryMainApp() {
                             }
                         } }
                         mainContent(Modifier.weight(1f))
-                    }
-                }
+                                   }
         
         }
     }
