@@ -362,6 +362,7 @@ val url = request?.url?.toString() ?: return false; val lowerUrl = url.lowercase
                 },
                 update = { webView ->
                     if (webView.tag != activeSource.id) {
+                        webView.stopLoading()
                         webView.tag = activeSource.id
                         webView.loadUrl(activeSource.url)
                     }
