@@ -40,8 +40,12 @@ import com.example.lotteryinfo.model.LotteryDraw
 import com.example.lotteryinfo.model.LotteryType
 import com.example.lotteryinfo.ui.components.LotteryBallRow
 import com.example.lotteryinfo.ui.layout.ScreenSizeClass
+import androidx.compose.foundation.layout.BoxWithConstraints
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HistoryScreen(
     sizeClass: ScreenSizeClass,
@@ -80,17 +84,10 @@ fun HistoryScreen(
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier
-                    .weight(1f)
-                    .horizontalScroll(rememberScrollState())
-            ) {
                 LotteryType.entries.forEach { type ->
                     FilterChip(
                         selected = selectedType == type,
@@ -99,25 +96,30 @@ fun HistoryScreen(
                     )
                 }
             }
+            Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                label = { Text("可选筛选：输入期号或日期（已直接展示全部历史）") },
+                singleLine = true,
+                modifier = Modifier.weight(1f)
+            )
             Text(
                 text = "已加载 ${history.size} 期",
                 style = MaterialTheme.typography.labelMedium,
-                color = Color.Gray,
-                modifier = Modifier.padding(start = 8.dp)
+                color = Color.Gray
             )
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            label = { Text("可选筛选：输入期号或日期（已直接展示全部历史）") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-
         Spacer(modifier = Modifier.height(10.dp))
 
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val isTwoPane = maxWidth >= 840.dp && maxWidth > maxHeight
         val listContent: @Composable (Modifier) -> Unit = { mod ->
             LazyColumn(
                 modifier = mod,
@@ -127,7 +129,7 @@ fun HistoryScreen(
                 items(filtered) { draw ->
                     HistoryDrawCard(
                         draw = draw,
-                        isSelected = sizeClass == ScreenSizeClass.EXPANDED && draw.issue == selectedDraw?.issue,
+                        isSelected = isTwoPane && draw.issue == selectedDraw?.issue,
                         onClick = { selectedDraw = draw }
                     )
                 }
@@ -161,7 +163,7 @@ fun HistoryScreen(
             }
         }
 
-        if (sizeClass == ScreenSizeClass.EXPANDED) {
+        if (isTwoPane) {
             Row(
                 modifier = Modifier.fillMaxSize(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -176,6 +178,8 @@ fun HistoryScreen(
             }
         } else {
             listContent(Modifier.fillMaxSize())
+        }
+    }
         }
     }
 }
