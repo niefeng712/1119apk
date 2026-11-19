@@ -50,6 +50,14 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.example.lotteryinfo.ui.layout.ScreenSizeClass
+import android.content.Intent
+import android.net.Uri
+import android.webkit.WebResourceError
+import android.webkit.WebResourceResponse
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.filled.OpenInBrowser
+import androidx.compose.material3.Button
 
 private data class OfficialLiveSource(
     val id: String,
@@ -59,8 +67,7 @@ private data class OfficialLiveSource(
 
 private val OFFICIAL_SOURCES = listOf(
     OfficialLiveSource("fc_live", "福彩官方直播", "https://www.cwl.gov.cn/html5/ygkj/kjzb/"),
-    OfficialLiveSource("tc_people", "体彩直播(人民网)", "http://link.people.com.cn/"),
-    OfficialLiveSource("tc_js", "体彩官网(江苏)", "https://www.js-lottery.com/")
+OfficialLiveSource("tc_live", "体彩官方直播", "https://m.lottery.gov.cn/kjzb/")
 )
 
 // 注入到官网直播/往期页面的净化脚本：隐藏导航、广告、新闻、页脚二维码，只保留视频、倒计时与往期视频列表
@@ -102,6 +109,7 @@ fun LiveScreen(
     var activeSource by remember { mutableStateOf(OFFICIAL_SOURCES.first()) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     var customVideoView by remember { mutableStateOf<View?>(null) }
+var loadError by remember { mutableStateOf<String?>(null) }
     var customVideoCallback by remember { mutableStateOf<WebChromeClient.CustomViewCallback?>(null) }
 
     fun exitVideoCustomView() {
@@ -198,6 +206,7 @@ fun LiveScreen(
                 ) {
                     Icon(Icons.Default.Refresh, contentDescription = "刷新")
                 }
+FilledTonalIconButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(activeSource.url))) }, modifier = Modifier.size(40.dp), colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = Color(0xFF2B2F36), contentColor = Color.White)) { Icon(Icons.Default.OpenInBrowser, contentDescription = "浏览器打开") }
 
                 FilledTonalIconButton(
                     onClick = { webViewRef?.evaluateJavascript(buildFullscreenJs(true), null); onFullscreenChange(true) },
@@ -239,8 +248,6 @@ fun LiveScreen(
                             loadWithOverviewMode = true
                             builtInZoomControls = true
                             displayZoomControls = false
-                            userAgentString =
-                                "Mozilla/5.0 (Linux; Android 14; Pad) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
                         }
 
                         webViewClient = object : WebViewClient() {
@@ -253,7 +260,9 @@ val url = request?.url?.toString() ?: return false; val lowerUrl = url.lowercase
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 super.onPageFinished(view, url)
                                 if (url?.contains("cwl.gov.cn", ignoreCase = true) == true) { view?.evaluateJavascript(PURIFY_PAGE_JS, null) }
-                            }
+                            } override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) { super.onReceivedError(view, request, error); if (request?.isForMainFrame == true) { loadError = "页面加载失败 (错误码: ${error?.errorCode ?: -1}, ${error?.description ?: "未知错误"})" } }
+                            override fun onReceivedHttpError(view: WebView?, request: WebResourceRequest?, errorResponse: WebResourceResponse?) { super.onReceivedHttpError(view, request, errorResponse); if (request?.isForMainFrame == true) { loadError = "HTTP 请求失败 (状态码: ${errorResponse?.statusCode ?: -1})" } }
+                            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) { super.onPageStarted(view, url, favicon); loadError = null }
                         }
 
                         webChromeClient = object : WebChromeClient() {
@@ -292,7 +301,7 @@ val url = request?.url?.toString() ?: return false; val lowerUrl = url.lowercase
                 },
                 modifier = Modifier.fillMaxSize()
             )
-
+        if (loadError != null) { Box(modifier = Modifier.fillMaxSize().background(Color(0xFF14161A)).padding(24.dp), contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) { Text(text = loadError ?: "", color = Color.White, style = MaterialTheme.typography.bodyLarge); Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { Button(onClick = { loadError = null; webViewRef?.reload() }) { Text("重新加载") }; Button(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(activeSource.url))) }) { Text("用系统浏览器打开") } } } } }
             // 全屏模式下右上角保留退出全屏悬浮按钮
             if (isFullscreen) {
                 FilledTonalIconButton(
