@@ -105,7 +105,7 @@ fun LotteryMainApp() {
             }
         }
 
-        Scaffold(topBar = { if (!hideChrome && selectedTab != 1) { TopAppBar(title = { Text(tabs[selectedTab].title) }) } }, bottomBar = { if (!hideChrome && sizeClass == ScreenSizeClass.COMPACT) { NavigationBar { tabs.forEachIndexed { index, tab -> NavigationBarItem(selected = selectedTab == index, onClick = { isLiveFullscreen = false; selectedTab = index }, icon = { Icon(tab.icon, contentDescription = tab.label) }, label = { Text(tab.label) }) } } } }) { innerPadding -> Row(modifier = (if (hideChrome) Modifier else Modifier.padding(innerPadding)).fillMaxSize()) { if (!hideChrome && sizeClass == ScreenSizeClass.EXPANDED) {
+        Scaffold(topBar = { if (!hideChrome && selectedTab != 1 && selectedTab != 2) { TopAppBar(title = { Text(tabs[selectedTab].title) }) } }, bottomBar = { if (!hideChrome && sizeClass == ScreenSizeClass.COMPACT) { NavigationBar { tabs.forEachIndexed { index, tab -> NavigationBarItem(selected = selectedTab == index, onClick = { isLiveFullscreen = false; selectedTab = index }, icon = { Icon(tab.icon, contentDescription = tab.label) }, label = { Text(tab.label) }) } } } }) { innerPadding -> Row(modifier = (if (hideChrome) Modifier else Modifier.padding(innerPadding)).fillMaxSize()) { if (!hideChrome && sizeClass == ScreenSizeClass.EXPANDED) {
                         PermanentDrawerSheet(modifier = Modifier.width(210.dp)) {
                             Text(
                                 text = "福彩体彩助手",
