@@ -43,6 +43,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableLongStateOf
+import kotlinx.coroutines.delay
+import java.util.Calendar
+import java.util.Locale
+import java.util.TimeZone
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -221,7 +231,62 @@ FilledTonalIconButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIE
                 }
             }
         }
-
+        if (!isFullscreen && activeSource.id == "tc_live") {
+            var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+            LaunchedEffect(Unit) {
+                while (true) {
+                    nowMillis = System.currentTimeMillis()
+                    delay(1000L)
+                }
+            }
+            val tz = remember { TimeZone.getTimeZone("Asia/Shanghai") }
+            val cal = Calendar.getInstance(tz).apply { timeInMillis = nowMillis }
+            val hour = cal.get(Calendar.HOUR_OF_DAY)
+            val minute = cal.get(Calendar.MINUTE)
+            val second = cal.get(Calendar.SECOND)
+            val secondsSinceMidnight = hour * 3600 + minute * 60 + second
+            val startLiveSec = 21 * 3600 + 20 * 60
+            val endLiveSec = 21 * 3600 + 40 * 60
+            val targetDrawSec = 21 * 3600 + 25 * 60
+            val isLiveWindow = secondsSinceMidnight in startLiveSec..endLiveSec
+            val bannerText = if (isLiveWindow) {
+                "正在体彩开奖直播时段（21:25 开奖）"
+            } else {
+                val remainSec = if (secondsSinceMidnight < targetDrawSec) {
+                    targetDrawSec - secondsSinceMidnight
+                } else {
+                    24 * 3600 - secondsSinceMidnight + targetDrawSec
+                }
+                val h = remainSec / 3600
+                val m = (remainSec % 3600) / 60
+                val s = remainSec % 60
+                String.format(Locale.getDefault(), "体彩开奖倒计时：距下一次 21:25 开奖还剩 %02d:%02d:%02d", h, m, s)
+            }
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(10.dp),
+                color = if (isLiveWindow) Color(0xFFD32F2F) else Color(0xFF1F3A5F)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Schedule,
+                        contentDescription = null,
+                        tint = if (isLiveWindow) Color.White else Color(0xFFFFD54F)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = bannerText,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
         // 官方直播/往期视频净化容器（保持单个 WebView 实例不被销毁）
         Box(
             modifier = Modifier
