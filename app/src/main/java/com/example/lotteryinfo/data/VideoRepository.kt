@@ -22,9 +22,10 @@ object VideoRepository {
         .readTimeout(12, TimeUnit.SECONDS)
         .build()
 
-    private val streamRegex = Regex("""https?://[^"'\s<>]+?\.(?:m3u8|mp4)(?:\?[^"'\s<>]*)?""", RegexOption.IGNORE_CASE)
-    private val sinaLinkRegex = Regex("""href=["'](https?://lotto\.sina\.cn/[^"']+)["'][^>]*>([^<]*开奖[^<]*)<""")
-
+    private val streamRegex = Regex("""(?:https?:)?//[^"'\s<>]+?\.(?:m3u8|mp4)(?:\?[^"'\s<>]*)?""", RegexOption.IGNORE_CASE)
+    private val sinaLinkRegex = Regex("""href=["']((?:https?:)?//lotto\.sina\.cn/[^"']+)["'][^>]*>([^<]*开奖[^<]*)<""")
+    private fun normalizeUrl(raw: String): String = if (raw.startsWith("//")) "https:$raw" else raw
+    
     suspend fun fetchVideoList(isWelfare: Boolean): List<VideoEpisode> = withContext(Dispatchers.IO) {
         val pageUrl = if (isWelfare) LotteryConfig.FC_SINA_LIVE_WEB else LotteryConfig.TC_SINA_LIVE_WEB
         val category = if (isWelfare) "中国福彩" else "中国体彩"
@@ -34,7 +35,7 @@ object VideoRepository {
             val html = fetchHtml(pageUrl, pageUrl)
             if (html.isNotBlank()) {
                 // 提取主直播流地址 (.m3u8 / .mp4)
-                val mainStreams = streamRegex.findAll(html).map { it.value }.distinct().toList()
+                val mainStreams = streamRegex.findAll(html).map { normalizeUrl(it.value) }.distinct().toList()
                 if (mainStreams.isNotEmpty()) {
                     results.add(
                         VideoEpisode(
@@ -51,7 +52,7 @@ object VideoRepository {
                 // 提取往期开奖视频页面链接
                 val pastLinks = sinaLinkRegex.findAll(html).take(12).toList()
                 pastLinks.forEachIndexed { idx, match ->
-                    val link = match.groupValues[1]
+                    val link = normalizeUrl(match.groupValues[1])
                     val title = match.groupValues[2].trim().ifBlank { "$category 往期开奖视频 #${idx + 1}" }
                     results.add(
                         VideoEpisode(
@@ -80,6 +81,7 @@ object VideoRepository {
                 )
             )
         }
+        if (results.none { !it.streamUrl.isNullOrBlank() }) { results.add(VideoEpisode(id = "${category}_demo_replay", title = "往期开奖回放演示（可用于测试全屏与横竖屏）", category = category, pageUrl = pageUrl, streamUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4", referer = pageUrl)) }
         results
     }
 
@@ -87,7 +89,7 @@ object VideoRepository {
         if (!episode.streamUrl.isNullOrBlank()) return@withContext episode.streamUrl
         try {
             val html = fetchHtml(episode.pageUrl, episode.referer)
-            streamRegex.find(html)?.value
+            streamRegex.find(html)?.value?.let { normalizeUrl(it) }
         } catch (_: Exception) {
             null
         }
