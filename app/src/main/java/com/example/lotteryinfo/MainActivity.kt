@@ -105,10 +105,7 @@ fun LotteryMainApp() {
             }
         }
 
-        when (sizeClass) {
-            ScreenSizeClass.EXPANDED -> {
-                Row(modifier = Modifier.fillMaxSize()) {
-                    if (!hideChrome) {
+        Scaffold(topBar = { if (!hideChrome && selectedTab != 1) { TopAppBar(title = { Text(tabs[selectedTab].title) }) } }, bottomBar = { if (!hideChrome && sizeClass == ScreenSizeClass.COMPACT) { NavigationBar { tabs.forEachIndexed { index, tab -> NavigationBarItem(selected = selectedTab == index, onClick = { isLiveFullscreen = false; selectedTab = index }, icon = { Icon(tab.icon, contentDescription = tab.label) }, label = { Text(tab.label) }) } } } }) { innerPadding -> Row(modifier = (if (hideChrome) Modifier else Modifier.padding(innerPadding)).fillMaxSize()) { if (!hideChrome && sizeClass == ScreenSizeClass.EXPANDED) {
                         PermanentDrawerSheet(modifier = Modifier.width(210.dp)) {
                             Text(
                                 text = "福彩体彩助手",
@@ -129,32 +126,7 @@ fun LotteryMainApp() {
                                 )
                             }
                         }
-                    }
-                    Scaffold(
-                        modifier = Modifier.weight(1f),
-                        topBar = {
-                            if (!hideChrome && selectedTab != 1) {
-                                TopAppBar(title = { Text(tabs[selectedTab].title) })
-                            }
-                        }
-                    ) { innerPadding ->
-                        mainContent(if (hideChrome) Modifier else Modifier.padding(innerPadding))
-                    }
-                }
-            }
-            ScreenSizeClass.MEDIUM -> {
-                Scaffold(
-                    topBar = {
-                        if (!hideChrome && selectedTab != 1) {
-                            TopAppBar(title = { Text(tabs[selectedTab].title) })
-                        }
-                    }
-                ) { innerPadding ->
-                    Row(
-                        modifier = (if (hideChrome) Modifier else Modifier.padding(innerPadding))
-                            .fillMaxSize()
-                    ) {
-                        if (!hideChrome) {
+               if (!hideChrome && sizeClass == ScreenSizeClass.MEDIUM) {
                             NavigationRail {
                                 tabs.forEachIndexed { index, tab ->
                                     NavigationRailItem(
@@ -172,35 +144,7 @@ fun LotteryMainApp() {
                         mainContent(Modifier.weight(1f))
                     }
                 }
-            }
-            ScreenSizeClass.COMPACT -> {
-                Scaffold(
-                    topBar = {
-                        if (!hideChrome && selectedTab != 1) {
-                            TopAppBar(title = { Text(tabs[selectedTab].title) })
-                        }
-                    },
-                    bottomBar = {
-                        if (!hideChrome) {
-                            NavigationBar {
-                                tabs.forEachIndexed { index, tab ->
-                                    NavigationBarItem(
-                                        selected = selectedTab == index,
-                                        onClick = {
-                                            isLiveFullscreen = false
-                                            selectedTab = index
-                                        },
-                                        icon = { Icon(tab.icon, contentDescription = tab.label) },
-                                        label = { Text(tab.label) }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                ) { innerPadding ->
-                    mainContent(if (hideChrome) Modifier else Modifier.padding(innerPadding))
-                }
-            }
+        
         }
     }
 }
