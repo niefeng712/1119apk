@@ -59,14 +59,14 @@ private data class OfficialLiveSource(
 
 private val OFFICIAL_SOURCES = listOf(
     OfficialLiveSource("fc_live", "福彩官方直播", "https://www.cwl.gov.cn/html5/ygkj/kjzb/"),
-    OfficialLiveSource("tc_live", "体彩官方直播", "https://m.lottery.gov.cn/kjzb/")
+    OfficialLiveSource("tc_live", "体彩官方直播", "https://lotto.sina.cn/video/tcopen")
 )
 
 // 注入到官网直播/往期页面的净化脚本：隐藏导航、广告、新闻、页脚二维码，只保留视频、倒计时与往期视频列表
 private const val PURIFY_PAGE_JS = """
 (function() {
   var css = `
-    header, nav, .header, .nav, .navbar, .top-nav, .topbar, .top-bar, .m-header, .g-header, footer, .footer, .foot, .m-footer, .g-footer, .copyright, .bottom-bar, .app-guide, .download-app, .ad, .qrcode, .qr-code, .ewm, [class*="qrcode"], [class*="ewm"], img[src*="qr"], img[alt*="二维码"], .notice, .announcement, .kjgg, .gonggao, .bulletin, .lottery-notice, .kj-notice, [class*="notice"], [class*="gonggao"], [class*="kjgg"] { display: none !important; } html, body { margin: 0 !important; max-width: 100% !important; overflow-x: hidden !important; } video, .video-box, .player, .video-wrap, iframe { width: 100% !important; max-width: 100% !important; min-height: 240px !important; }
+  header, nav, footer, .app-guide, .download-app, .copyright { display: none !important; } html, body { margin: 0 !important; max-width: 100% !important; overflow-x: hidden !important; } video, .video-box, .player, .video-wrap, iframe { width: 100% !important; max-width: 100% !important; min-height: 240px !important; }
   `;
   var style = document.getElementById('apk-purify-style');
   if (!style) {
@@ -75,7 +75,7 @@ private const val PURIFY_PAGE_JS = """
     document.head.appendChild(style);
   }
   style.innerHTML = css;
-      document.querySelectorAll('a, div, section, button, span').forEach(function(el) { if (el.querySelector('video, iframe')) return; var t = (el.innerText || '').trim(); if (t.length > 0 && t.length < 300 && (t.indexOf('APP专享') !== -1 || t.indexOf('开奖公告') !== -1 || t.indexOf('二维码') !== -1 || t.indexOf('扫码') !== -1 || t.indexOf('下载APP') !== -1 || t.indexOf('版权所有') !== -1 || t.indexOf('ICP备') !== -1)) { el.style.display = 'none'; } });
+      document.querySelectorAll('a, div, section, button, span').forEach(function(el) { if (el.querySelector('video, iframe')) return; var t = (el.innerText || '').trim(); if (t.length > 0 && t.length < 300 && t.indexOf('APP专享') !== -1) { el.style.display = 'none'; } });
       
   // 确保页面内所有视频支持内联播放与控制条
   document.querySelectorAll('video').forEach(function(v) {
@@ -247,16 +247,7 @@ fun LiveScreen(
                                 view: WebView?,
                                 request: WebResourceRequest?
                             ): Boolean {
-                               val url = request?.url?.toString() ?: return false
-val host = request.url?.host?.lowercase().orEmpty()
-val lowerUrl = url.lowercase()
-val isAllowedDomain = host == "cwl.gov.cn" || host.endsWith(".cwl.gov.cn") || host == "lottery.gov.cn" || host.endsWith(".lottery.gov.cn") || host == "sporttery.cn" || host.endsWith(".sporttery.cn")
-val isVideoUrl = lowerUrl.contains(".m3u8") || lowerUrl.contains(".mp4")
-if ((url.startsWith("http://") || url.startsWith("https://")) && (isAllowedDomain || isVideoUrl)) {
-return false
-}
-return true
-                            }
+val url = request?.url?.toString() ?: return false; val lowerUrl = url.lowercase(); if (!lowerUrl.startsWith("http://") && !lowerUrl.startsWith("https://")) return true; if (lowerUrl.contains(".apk")) return true; return false }
 
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 super.onPageFinished(view, url)
