@@ -59,7 +59,8 @@ private data class OfficialLiveSource(
 
 private val OFFICIAL_SOURCES = listOf(
     OfficialLiveSource("fc_live", "福彩官方直播", "https://www.cwl.gov.cn/html5/ygkj/kjzb/"),
-    OfficialLiveSource("tc_live", "体彩官方直播", "https://www.lottery.gov.cn/")
+    OfficialLiveSource("tc_people", "体彩直播(人民网)", "http://link.people.com.cn/"),
+    OfficialLiveSource("tc_js", "体彩官网(江苏)", "https://www.js-lottery.com/")
 )
 
 // 注入到官网直播/往期页面的净化脚本：隐藏导航、广告、新闻、页脚二维码，只保留视频、倒计时与往期视频列表
@@ -251,7 +252,7 @@ val url = request?.url?.toString() ?: return false; val lowerUrl = url.lowercase
 
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 super.onPageFinished(view, url)
-                                if (url?.contains("lottery.gov.cn", ignoreCase = true) != true) { view?.evaluateJavascript(PURIFY_PAGE_JS, null) }
+                                if (url?.contains("cwl.gov.cn", ignoreCase = true) == true) { view?.evaluateJavascript(PURIFY_PAGE_JS, null) }
                             }
                         }
 
