@@ -44,6 +44,22 @@ import com.example.lotteryinfo.ui.screens.HistoryScreen
 import com.example.lotteryinfo.ui.screens.HomeScreen
 import com.example.lotteryinfo.ui.screens.LiveScreen
 import com.example.lotteryinfo.ui.screens.TrendChartScreen
+import android.content.Context
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
+import kotlin.math.round
+
 import com.example.lotteryinfo.ui.theme.LotteryInfoTheme
 
 class MainActivity : ComponentActivity() {
@@ -67,6 +83,16 @@ fun LotteryMainApp() {
     var trendLotteryType by remember { mutableStateOf(LotteryType.SSQ) }
     var historyLotteryType by remember { mutableStateOf(LotteryType.SSQ) }
     var isLiveFullscreen by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("lottery_prefs", Context.MODE_PRIVATE) }
+    var fontScale by remember {
+        mutableFloatStateOf(prefs.getFloat("font_scale", 1.0f).coerceIn(0.85f, 1.65f))
+    }
+    val updateFontScale: (Float) -> Unit = { delta ->
+        val next = (round((fontScale + delta) * 100f) / 100f).coerceIn(0.85f, 1.65f)
+        fontScale = next
+        prefs.edit().putFloat("font_scale", next).apply()
+    }
 
     val tabs = listOf(
         NavTab("大厅", "开奖大厅", Icons.Default.Home),
@@ -74,7 +100,8 @@ fun LotteryMainApp() {
         NavTab("走势图", "号码走势图", Icons.Default.ShowChart),
         NavTab("历史", "历史开奖", Icons.Default.History)
     )
-
+    CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = fontScale)) {
+        
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val sizeClass = screenSizeClassFromWidth(maxWidth)
         val hideChrome = selectedTab == 1 && isLiveFullscreen
@@ -105,7 +132,7 @@ fun LotteryMainApp() {
             }
         }
 
-        Scaffold(topBar = { if (!hideChrome && selectedTab != 1 && selectedTab != 2) { TopAppBar(title = { Text(tabs[selectedTab].title) }) } }, bottomBar = { if (!hideChrome && sizeClass == ScreenSizeClass.COMPACT) { NavigationBar { tabs.forEachIndexed { index, tab -> NavigationBarItem(selected = selectedTab == index, onClick = { isLiveFullscreen = false; selectedTab = index }, icon = { Icon(tab.icon, contentDescription = tab.label) }, label = { Text(tab.label) }) } } } }) { innerPadding -> Row(modifier = (if (hideChrome) Modifier else Modifier.padding(innerPadding)).fillMaxSize()) { Box { if (!hideChrome && sizeClass == ScreenSizeClass.EXPANDED) {
+        Scaffold(topBar = { if (!hideChrome && selectedTab != 1 && selectedTab != 2) { TopAppBar(title = { Text(tabs[selectedTab].title) }, actions = { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(end = 8.dp)) { FilledTonalButton(onClick = { updateFontScale(-0.15f) }, enabled = fontScale > 0.86f, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 36.dp)) { Text("字-", fontWeight = FontWeight.Bold) }; FilledTonalButton(onClick = { updateFontScale(0.15f) }, enabled = fontScale < 1.64f, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 36.dp)) { Text("字+", fontWeight = FontWeight.Bold) } } }) } }, bottomBar = { if (!hideChrome && sizeClass == ScreenSizeClass.COMPACT) { NavigationBar { tabs.forEachIndexed { index, tab -> NavigationBarItem(selected = selectedTab == index, onClick = { isLiveFullscreen = false; selectedTab = index }, icon = { Icon(tab.icon, contentDescription = tab.label) }, label = { Text(tab.label) }) } } } }) { innerPadding -> Row(modifier = (if (hideChrome) Modifier else Modifier.padding(innerPadding)).fillMaxSize()) { Box { if (!hideChrome && sizeClass == ScreenSizeClass.EXPANDED) {
                         PermanentDrawerSheet(modifier = Modifier.width(210.dp)) {
                             Text(
                                 text = "福彩体彩助手",
@@ -125,6 +152,32 @@ fun LotteryMainApp() {
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                                 )
                             }
+                        Spacer(modifier = Modifier.weight(1f))
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            FilledTonalButton(
+                                onClick = { updateFontScale(-0.15f) },
+                                enabled = fontScale > 0.86f,
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+                            ) {
+                                Text("字-", fontWeight = FontWeight.Bold)
+                            }
+                            FilledTonalButton(
+                                onClick = { updateFontScale(0.15f) },
+                                enabled = fontScale < 1.64f,
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+                            ) {
+                                Text("字+", fontWeight = FontWeight.Bold)
+                            }
+                        }
                         } }
                if (!hideChrome && sizeClass == ScreenSizeClass.MEDIUM) {
                             NavigationRail {
@@ -145,5 +198,6 @@ fun LotteryMainApp() {
                                    }
         
         }
+    }
     }
 }
