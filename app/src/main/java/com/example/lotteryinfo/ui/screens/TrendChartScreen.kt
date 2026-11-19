@@ -90,7 +90,7 @@ fun TrendChartScreen(
 
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.horizontalScroll(rememberScrollState())
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
         ) {
             LotteryType.entries.forEach { type ->
                 FilterChip(
@@ -99,19 +99,7 @@ fun TrendChartScreen(
                     label = { Text(type.displayName) }
                 )
             }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier
-                    .weight(1f)
-                    .horizontalScroll(rememberScrollState())
-            ) {
+                Spacer(modifier = Modifier.width(12.dp))
                 if (isDigit) {
                     val posCount = if (selectedType == LotteryType.QXC) 7 else selectedType.digitCount
                     for (pos in 0 until posCount) {
@@ -142,7 +130,6 @@ fun TrendChartScreen(
                         label = { Text("蓝球走势") }
                     )
                 }
-            }
         }
 
         Spacer(modifier = Modifier.height(6.dp))
