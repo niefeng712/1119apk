@@ -59,7 +59,7 @@ private data class OfficialLiveSource(
 
 private val OFFICIAL_SOURCES = listOf(
     OfficialLiveSource("fc_live", "福彩官方直播", "https://www.cwl.gov.cn/html5/ygkj/kjzb/"),
-    OfficialLiveSource("tc_live", "体彩官方直播", "https://lotto.sina.cn/video/tcopen")
+    OfficialLiveSource("tc_live", "体彩官方直播", "https://m.lottery.gov.cn/kjzb/")
 )
 
 // 注入到官网直播/往期页面的净化脚本：隐藏导航、广告、新闻、页脚二维码，只保留视频、倒计时与往期视频列表
