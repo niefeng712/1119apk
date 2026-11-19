@@ -95,7 +95,7 @@ private const val PURIFY_PAGE_JS = """
 })();
 """
 
-private fun buildFullscreenJs(enable: Boolean): String = if (enable) "(function(){var s=document.getElementById('apk-fullscreen-style');if(!s){s=document.createElement('style');s.id='apk-fullscreen-style';document.head.appendChild(s);}s.innerHTML='video,.video-box,.live-box,.player-box,.video-wrap,iframe{position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100vh!important;z-index:999999!important;background:#000!important;}';})();" else "(function(){var s=document.getElementById('apk-fullscreen-style');if(s){s.remove();}})();"    
+private fun buildFullscreenJs(enable: Boolean): String = if (enable) "(function(){var s=document.getElementById('apk-fullscreen-style');if(!s){s=document.createElement('style');s.id='apk-fullscreen-style';document.head.appendChild(s);}s.innerHTML='video,.video-box,.live-box,.player-box,.video-wrap,.prism-player,.video-js,[id*=\"player\"],[id*=\"video\"],iframe{position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100vh!important;z-index:999999!important;background:#000!important;}video{width:100%!important;height:100%!important;object-fit:contain!important;}';})();" else "(function(){var s=document.getElementById('apk-fullscreen-style');if(s){s.remove();}})();"    
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -248,6 +248,7 @@ FilledTonalIconButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIE
                             useWideViewPort = true
                             loadWithOverviewMode = true
                             builtInZoomControls = true
+                            textZoom = 100
                             displayZoomControls = false
                         }
 
@@ -260,7 +261,7 @@ val url = request?.url?.toString() ?: return false; val lowerUrl = url.lowercase
 
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 super.onPageFinished(view, url)
-                                if (url?.contains("cwl.gov.cn", ignoreCase = true) == true) { view?.evaluateJavascript(PURIFY_PAGE_JS, null) }
+                                if (url?.contains("cwl.gov.cn", ignoreCase = true) == true) { view?.evaluateJavascript(PURIFY_PAGE_JS, null) } else if (url?.contains("lottery.gov.cn", ignoreCase = true) == true) { view?.evaluateJavascript("(function(){document.querySelectorAll('video').forEach(function(v){v.controls=true;v.setAttribute('controls','controls');v.setAttribute('playsinline','');v.setAttribute('webkit-playsinline','');});})();", null) }
                             } override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) { super.onReceivedError(view, request, error); if (request?.isForMainFrame == true) { loadError = "页面加载失败 (错误码: ${error?.errorCode ?: -1}, ${error?.description ?: "未知错误"})" } }
                             override fun onReceivedHttpError(view: WebView?, request: WebResourceRequest?, errorResponse: WebResourceResponse?) { super.onReceivedHttpError(view, request, errorResponse); if (request?.isForMainFrame == true) { loadError = "HTTP 请求失败 (状态码: ${errorResponse?.statusCode ?: -1})" } }
                             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) { super.onPageStarted(view, url, favicon); loadError = null }
