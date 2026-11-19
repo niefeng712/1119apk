@@ -267,7 +267,7 @@ fun TrendChartScreen(
                                 if (colIndex in 0 until totalCols) {
                                     drawCircle(
                                         color = ballColor,
-                                        radius = minOf(cw, ch) * 0.37f,
+                                        radius = minOf(cw, ch) * 0.43f,
                                         center = Offset((colIndex + 0.5f) * cw, (rowIndex + 0.5f) * ch)
                                     )
                                 }
@@ -293,7 +293,7 @@ fun TrendChartScreen(
                                             Text(
                                                 text = if (twoDigits) num.toString().padStart(2, '0') else num.toString(),
                                                 color = Color.White,
-                                                fontSize = 14.sp,
+                                                fontSize = 13.sp, lineHeight = 14.sp, maxLines = 1, softWrap = false,
                                                 fontWeight = FontWeight.ExtraBold
                                             )
                                         }
@@ -301,6 +301,7 @@ fun TrendChartScreen(
                                 }
                             }
                         }
+                    Spacer(modifier = Modifier.height(24.dp))
                     }
                 }
             }
