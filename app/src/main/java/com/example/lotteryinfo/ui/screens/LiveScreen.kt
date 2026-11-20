@@ -41,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.width
@@ -107,6 +108,8 @@ private const val PURIFY_PAGE_JS = """
 
 private fun buildFullscreenJs(enable: Boolean): String = if (enable) "(function(){var s=document.getElementById('apk-fullscreen-style');if(!s){s=document.createElement('style');s.id='apk-fullscreen-style';document.head.appendChild(s);}s.innerHTML='video,.video-box,.live-box,.player-box,.video-wrap,.prism-player,.video-js,[id*=\"player\"],[id*=\"video\"],iframe{position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100vh!important;z-index:999999!important;background:#000!important;}video{width:100%!important;height:100%!important;object-fit:contain!important;}';})();" else "(function(){var s=document.getElementById('apk-fullscreen-style');if(s){s.remove();}})();"    
 
+private const val PIN_PLAYER_TOP_JS = "(function(){function pin(){var h=location.hostname||'';if(h.indexOf('cwl.gov.cn')!==-1){document.querySelectorAll('header,nav,.header,.nav,.topbar,.title,.bread,.breadcrumb,.banner').forEach(function(e){e.style.display='none';});var v=document.querySelector('video,.video-box,.live-box,.player,#player,iframe');if(v){(v.closest('.video-box,.live-box,.player,.main,section,div')||v).scrollIntoView({block:'start'});}}else if(h.indexOf('lottery.gov.cn')!==-1){document.querySelectorAll('header,.header,.top-banner,.red-banner,.banner,.title-bar,.nav').forEach(function(e){e.style.display='none';});document.querySelectorAll('div,section').forEach(function(e){var t=(e.innerText||'').trim();if((t.indexOf('相约体彩')!==-1||t.indexOf('开奖直播')!==-1)&&e.offsetHeight>0&&e.offsetHeight<260&&!e.querySelector('video,iframe')){e.style.display='none';}});var v2=document.querySelector('video,iframe,.video-wrap,.live-player,#player');if(v2){(v2.closest('.video-wrap,.live-player,.player,section,div')||v2).scrollIntoView({block:'start'});}}}pin();setTimeout(pin,800);})();"
+
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun LiveScreen(
@@ -116,6 +119,9 @@ fun LiveScreen(
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
+    LaunchedEffect(isLandscape) { onFullscreenChange(isLandscape) }
 
     var activeSource by remember { mutableStateOf(OFFICIAL_SOURCES.first()) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
@@ -326,7 +332,7 @@ val url = request?.url?.toString() ?: return false; val lowerUrl = url.lowercase
 
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 super.onPageFinished(view, url)
-                                if (url?.contains("cwl.gov.cn", ignoreCase = true) == true) { view?.evaluateJavascript(PURIFY_PAGE_JS, null) } else if (url?.contains("lottery.gov.cn", ignoreCase = true) == true) { view?.evaluateJavascript("(function(){document.querySelectorAll('video').forEach(function(v){v.controls=true;v.setAttribute('controls','controls');v.setAttribute('playsinline','');v.setAttribute('webkit-playsinline','');});})();", null) }
+                                if (url?.contains("cwl.gov.cn", ignoreCase = true) == true) { view?.evaluateJavascript(PURIFY_PAGE_JS, null) }; if (url?.contains("cwl.gov.cn", ignoreCase = true) == true || url?.contains("lottery.gov.cn", ignoreCase = true) == true) { view?.evaluateJavascript(PIN_PLAYER_TOP_JS, null) } else if (url?.contains("lottery.gov.cn", ignoreCase = true) == true) { view?.evaluateJavascript("(function(){document.querySelectorAll('video').forEach(function(v){v.controls=true;v.setAttribute('controls','controls');v.setAttribute('playsinline','');v.setAttribute('webkit-playsinline','');});})();", null) }
                             } override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) { super.onReceivedError(view, request, error); if (request?.isForMainFrame == true) { loadError = "页面加载失败 (错误码: ${error?.errorCode ?: -1}, ${error?.description ?: "未知错误"})" } }
                             override fun onReceivedHttpError(view: WebView?, request: WebResourceRequest?, errorResponse: WebResourceResponse?) { super.onReceivedHttpError(view, request, errorResponse); if (request?.isForMainFrame == true) { loadError = "HTTP 请求失败 (状态码: ${errorResponse?.statusCode ?: -1})" } }
                             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) { super.onPageStarted(view, url, favicon); loadError = null }
