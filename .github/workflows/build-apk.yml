@@ -26,11 +26,13 @@ jobs:
           if [ $OFFSET -lt 0 ]; then OFFSET=0; fi
           MINOR=$(( 1 + OFFSET / 10 ))
           PATCH=$(( OFFSET % 10 ))
-          APP_VER="1.${MINOR}.${PATCH}"
+          APP_VER="1.${MINOR}.${PATCH}" 
+          APP_CODE=$(( 100 + GITHUB_RUN_NUMBER ))
           echo "APP_VER=${APP_VER}" >> $GITHUB_ENV
-          echo "APP_CODE=${GITHUB_RUN_NUMBER}" >> $GITHUB_ENV
-          sed -i "s/versionCode = .*/versionCode = ${GITHUB_RUN_NUMBER}/" app/build.gradle.kts
-          sed -i "s/versionName = \".*\"/versionName = \"${APP_VER}\"/" app/build.gradle.kts
+          echo "APP_CODE=${APP_CODE}" >> $GITHUB_ENV
+          sed -i "s/versionCode = .*/versionCode = ${APP_CODE}/" app/build.gradle.kts
+          sed -i "s/versionName = \".*\"/versionName = \"${APP_VER}\"/" app/build.gradle.kts 
+          sed -n '10,20p' app/build.gradle.kts
       - name: Restore Fixed Debug Keystore
         run: mkdir -p ~/.android && base64 -d app/fixed-debug-keystore.b64 > ~/.android/debug.keystore
       - name: Build Debug APK
