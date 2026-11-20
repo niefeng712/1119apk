@@ -53,6 +53,9 @@ import com.example.lotteryinfo.ui.theme.GoldAccent
 import java.util.Calendar
 import java.util.TimeZone
 import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -67,6 +70,10 @@ fun HomeScreen(
     var isLoading by remember { mutableStateOf(true) }
     var refreshTrigger by remember { mutableIntStateOf(0) }
     var sinaSyncTrigger by remember { mutableIntStateOf(1) }
+    var lastSyncTime by remember { mutableStateOf("--:--:--") }
+    fun formatBeijingTime(): String = SimpleDateFormat("HH:mm:ss", Locale.CHINA).apply {
+        timeZone = TimeZone.getTimeZone("Asia/Shanghai")
+    }.format(Date())
     LaunchedEffect(refreshTrigger) {
       if (refreshTrigger > 0) sinaSyncTrigger++
         isLoading = true
@@ -74,17 +81,19 @@ fun HomeScreen(
         draws = res.draws
         statusText = res.statusMessage
         isLoading = false
+lastSyncTime = formatBeijingTime()
     }
     LaunchedEffect(Unit) {
         while (true) {
             val cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Shanghai"))
             val minutes = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
-            val intervalMs = if (minutes in (21 * 60 + 10)..(21 * 60 + 50)) 15_000L else 60_000L
+        val intervalMs = if (minutes in (21 * 60 + 14)..(21 * 60 + 40)) 8_000L else 60_000L    
             delay(intervalMs)
-            if (minutes in (21 * 60 + 10)..(21 * 60 + 50)) sinaSyncTrigger++
+            if (minutes in (21 * 60 + 14)..(21 * 60 + 40)) sinaSyncTrigger++
             val res = LotteryRepository.fetchLatestAll()
             draws = res.draws
             statusText = res.statusMessage
+lastSyncTime = formatBeijingTime()
         }
     }
     
@@ -129,7 +138,7 @@ fun HomeScreen(
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = statusText,
+                        text = "$statusText · 最近更新 $lastSyncTime",    
                             style = MaterialTheme.typography.bodySmall,
                             color = Color.Gray,
                             maxLines = 1,
@@ -145,18 +154,20 @@ fun HomeScreen(
             items(filteredDraws) { draw ->
                 LatestDrawCard(
                     draw = draw,
+lastSyncTime = lastSyncTime,
                     onOpenHistory = { onOpenHistory(draw.lotteryType) },
                     onOpenLive ={  onOpenLive(draw.lotteryType.org) }
                 )
             }
         }
     }
-    AndroidView(modifier = Modifier.size(1.dp).alpha(0f), factory = { ctx -> WebView(ctx).apply { settings.javaScriptEnabled = true; settings.domStorageEnabled = true; webViewClient = object : WebViewClient() { override fun onPageFinished(view: WebView?, url: String?) { view?.postDelayed({ view.evaluateJavascript("(function(){var t=document.body?document.body.innerText:'';var m=t.match(/福彩3D[\\\\s\\\\S]{0,80}?(\\\\d{7})[\\\\s\\\\S]{0,40}?(\\\\d)\\\\s+(\\\\d)\\\\s+(\\\\d)/);return m?(m[1]+'|'+m[2]+','+m[3]+','+m[4]):'';})()") { raw -> val s = raw?.trim('"')?.trim() ?: ""; if (s.contains("|")) { val p = s.split("|"); val issue = p[0]; val nums = p.getOrNull(1)?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList(); if (issue.length == 7 && nums.size == 3) { val fastDraw = LotteryDraw(LotteryType.FC3D, issue, "今日开奖 (新浪极速)", nums, emptyList(), "固定派奖", "--", 0, "1040 元", isLiveData = true); LotteryRepository.updateFastLatest(fastDraw); val curIssue = draws.firstOrNull { it.lotteryType == LotteryType.FC3D }?.issue?.toLongOrNull() ?: 0L; if ((issue.toLongOrNull() ?: 0L) > curIssue) { draws = draws.map { if (it.lotteryType == LotteryType.FC3D) fastDraw else it }.let { list -> if (list.any { it.lotteryType == LotteryType.FC3D }) list else listOf(fastDraw) + list }; statusText = "已极速同步新浪最新开奖" } } } } }, 1500L) } } } }, update = { w -> if (w.tag != sinaSyncTrigger) { w.tag = sinaSyncTrigger; w.loadUrl("https://lotto.sina.cn/open") } }) }
+  AndroidView(modifier = Modifier.size(1.dp).alpha(0f), factory = { ctx -> WebView(ctx).apply { settings.javaScriptEnabled = true; webViewClient = object : WebViewClient() { override fun onPageFinished(view: WebView?, url: String?) { super.onPageFinished(view, url); view?.evaluateJavascript("(function(){var t=document.body.innerText||'';var r=[];var m1=t.match(/福彩3D[\\s\\S]{0,120}?(20\\d{5}|\\d{5,7})期[\\s\\S]{0,80}?(\\d[\\s,]+\\d[\\s,]+\\d)/);if(m1)r.push('FC3D:'+m1[1]+'|'+m1[2]);var m2=t.match(/排列[3三][\\s\\S]{0,120}?(20\\d{5}|\\d{5,7})期[\\s\\S]{0,80}?(\\d[\\s,]+\\d[\\s,]+\\d)/);if(m2)r.push('PL3:'+m2[1]+'|'+m2[2]);var m3=t.match(/排列[5五][\\s\\S]{0,120}?(20\\d{5}|\\d{5,7})期[\\s\\S]{0,80}?(\\d[\\s,]+\\d[\\s,]+\\d[\\s,]+\\d[\\s,]+\\d)/);if(m3)r.push('PL5:'+m3[1]+'|'+m3[2]);return r.join(';');})()") { raw -> val s = raw?.trim('"') ?: ""; if (s.isNotBlank() && s != "null") { val tm = mapOf("FC3D" to (LotteryType.FC3D to 3), "PL3" to (LotteryType.PL3 to 3), "PL5" to (LotteryType.PL5 to 5)); var ndList = draws; var changed = false; s.split(";").forEach { item -> val idx = item.indexOf(':'); if (idx > 0) { val info = tm[item.substring(0, idx)]; val parts = item.substring(idx + 1).split("|"); if (info != null && parts.size == 2) { val issue = parts[0].trim(); val nums = parts[1].trim().split(Regex("[,\\s]+")).mapNotNull { it.toIntOrNull() }; if (issue.isNotBlank() && nums.size == info.second) { val cur = ndList.firstOrNull { it.lotteryType == info.first }?.issue ?: ""; if (LotteryRepository.normalizeIssue(issue) > LotteryRepository.normalizeIssue(cur)) { val nd = LotteryDraw(info.first, issue, "今日极速", nums, "", "新浪极速", "", ""); LotteryRepository.updateFastLatest(nd); ndList = ndList.map { if (it.lotteryType == info.first) nd else it }; changed = true } } } } }; if (changed) { draws = ndList; statusText = "极速开奖同步成功" }; lastSyncTime = formatBeijingTime() } } } }; loadUrl("https://lotto.sina.cn/open") } }, update = { w -> if (w.tag != sinaSyncTrigger) { w.tag = sinaSyncTrigger; w.loadUrl("https://lotto.sina.cn/open") } })  
 }
 
 @Composable
 private fun LatestDrawCard(
     draw: LotteryDraw,
+lastSyncTime: String,
     onOpenHistory: () -> Unit,
     onOpenLive: () -> Unit
 ) {
@@ -183,6 +194,7 @@ private fun LatestDrawCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = Color(0xFF5F6368)
                     )
+Text(text = "更新于 $lastSyncTime", style = MaterialTheme.typography.labelSmall, color = Color(0xFF5F6368))
                 }
                 Text(
                     text = draw.poolAmount,
