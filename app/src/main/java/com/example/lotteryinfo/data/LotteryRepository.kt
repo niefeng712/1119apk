@@ -13,6 +13,10 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 data class FetchResult(
     val draws: List<LotteryDraw>,
@@ -27,8 +31,25 @@ object LotteryRepository {
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
     private val fastLatestMap = mutableMapOf<LotteryType, LotteryDraw>()
+  fun normalizeIssue(issue: String): Long {
+        val digits = issue.filter { it.isDigit() }
+        val normalized = if (digits.length == 5) "20$digits" else digits
+        return normalized.toLongOrNull() ?: 0L
+    }
+
+    private fun currentBeijingTime(): String {
+        val sdf = SimpleDateFormat("HH:mm:ss", Locale.CHINA)
+        sdf.timeZone = TimeZone.getTimeZone("Asia/Shanghai")
+        return sdf.format(Date())
+    }
+
     fun updateFastLatest(draw: LotteryDraw) {
-        synchronized(fastLatestMap) { val cur = fastLatestMap[draw.lotteryType]?.issue?.toLongOrNull() ?: 0L; if ((draw.issue.toLongOrNull() ?: 0L) > cur) fastLatestMap[draw.lotteryType] = draw }
+        synchronized(fastLatestMap) {
+            val cur = fastLatestMap[draw.lotteryType]?.issue?.let { normalizeIssue(it) } ?: 0L
+            if (normalizeIssue(draw.issue) >= cur) {
+                fastLatestMap[draw.lotteryType] = draw
+            }
+        }
     }
     
     fun getLiveChannels(): List<LiveChannel> = listOf(
@@ -66,33 +87,66 @@ object LotteryRepository {
         type: LotteryType,
         pageNo: Int = 1,
         pageSize: Int = 100
-    ): FetchResult = withContext(Dispatchers.IO) {
+  ): FetchResult = withContext(Dispatchers.IO) {
         try {
-            val remoteRaw = when {
-type == LotteryType.FC3D && pageNo == 1 && type.cwlName != null -> coroutineScope {
-                val cwlDeferred = async { fetchFromCwl(type, type.cwlName, pageNo, pageSize) }
-                val sinaDeferred = async { fetchFc3dFastFromSina() }
-                val cwlList = cwlDeferred.await()
-                val sinaDraw = sinaDeferred.await()
-                if (sinaDraw != null && (cwlList.isEmpty() || (sinaDraw.issue.toLongOrNull() ?: 0L) > (cwlList.first().issue.toLongOrNull() ?: 0L))) {
-                    listOf(sinaDraw) + cwlList.filterNot { it.issue == sinaDraw.issue }
-                } else {
-                    cwlList
+            val timeStr = currentBeijingTime()
+            if (pageNo == 1) {
+                val (officialList, neteaseDraw) = coroutineScope {
+                    val officialDeferred = async {
+                        try {
+                            when {
+                                type.cwlName != null -> fetchFromCwl(type, type.cwlName, pageNo, pageSize)
+                                type.sportteryGameNo != null -> fetchFromSporttery(type, type.sportteryGameNo, pageNo, pageSize)
+                                else -> emptyList()
+                            }
+                        } catch (_: Exception) {
+                            emptyList()
+                        }
+                    }
+                    val neteaseDeferred = async {
+                        try {
+                            fetchFastFromNetease(type)
+                        } catch (_: Exception) {
+                            null
+                        }
+                    }
+                    officialDeferred.await() to neteaseDeferred.await()
                 }
-}
-                type.cwlName != null -> fetchFromCwl(type, type.cwlName, pageNo, pageSize)
-                type.sportteryGameNo != null -> fetchFromSporttery(type, type.sportteryGameNo, pageNo, pageSize)
-                else -> emptyList()
-            }
-            val fastDraw = if (pageNo == 1) synchronized(fastLatestMap) { fastLatestMap[type] } else null; val remote = if (fastDraw != null && (remoteRaw.isEmpty() || (fastDraw.issue.toLongOrNull() ?: 0L) > (remoteRaw.first().issue.toLongOrNull() ?: 0L))) listOf(fastDraw) + remoteRaw.filterNot { it.issue == fastDraw.issue } else remoteRaw
-            if (remote.isNotEmpty()) {
-                FetchResult(remote, isFromNetwork = true, statusMessage = "已同步官方公开接口（${remote.size}期）")
+                val sinaDraw = synchronized(fastLatestMap) { fastLatestMap[type] }
+                val officialTop = officialList.firstOrNull()
+                val candidates = buildList {
+                    if (officialTop != null) add("官方接口" to officialTop)
+                    if (neteaseDraw != null) add("网易极速" to neteaseDraw)
+                    if (sinaDraw != null) add("新浪实时" to sinaDraw)
+                }
+                val bestPair = candidates.maxByOrNull { normalizeIssue(it.second.issue) }
+                if (bestPair != null) {
+                    val (hitSource, bestDraw) = bestPair
+                    val bestNorm = normalizeIssue(bestDraw.issue)
+                    val merged = listOf(bestDraw) + officialList.filterNot { normalizeIssue(it.issue) == bestNorm }
+                    return@withContext FetchResult(
+                        draws = merged,
+                        isFromNetwork = true,
+                        statusMessage = "已同步 ${bestDraw.issue}期 · 命中来源：$hitSource ($timeStr)"
+                    )
+                } else {
+                    return@withContext FetchResult(
+                        draws = getFallbackHistory(type),
+                        isFromNetwork = false,
+                        statusMessage = "接口暂无更多数据 ($timeStr)"
+                    )
+                }
             } else {
-                FetchResult(
-                    if (pageNo == 1) getFallbackHistory(type) else emptyList(),
-                    isFromNetwork = false,
-                    statusMessage = "接口暂无更多数据"
-                )
+                val remote = when {
+                    type.cwlName != null -> fetchFromCwl(type, type.cwlName, pageNo, pageSize)
+                    type.sportteryGameNo != null -> fetchFromSporttery(type, type.sportteryGameNo, pageNo, pageSize)
+                    else -> emptyList()
+                }
+                if (remote.isNotEmpty()) {
+                    FetchResult(remote, isFromNetwork = true, statusMessage = "已同步官方公开接口 (${remote.size}期) ($timeStr)")
+                } else {
+                    FetchResult(emptyList(), isFromNetwork = false, statusMessage = "接口暂无更多数据 ($timeStr)")
+                }
             }
         } catch (e: Exception) {
             FetchResult(
@@ -114,6 +168,53 @@ type == LotteryType.FC3D && pageNo == 1 && type.cwlName != null -> coroutineScop
         val anyNetwork = allResults.any { it.isFromNetwork }
         val msg = if (anyNetwork) "已同步官方最新开奖数据" else "当前显示离线示例数据（请检查网络）"
         FetchResult(draws, isFromNetwork = anyNetwork, statusMessage = msg)
+    }
+
+    private fun fetchFastFromNetease(type: LotteryType): LotteryDraw? {
+        val path = when (type) {
+            LotteryType.FC3D -> "fc3d"
+            LotteryType.PL3 -> "pl3"
+            LotteryType.PL5 -> "pl5"
+        }
+        val url = "https://" + "sports." + "163" + ".com/caipiao/lottery/$path?_t=${System.currentTimeMillis()}"
+        return try {
+            val req = Request.Builder()
+                .url(url)
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+                .header("Cache-Control", "no-cache, no-store")
+                .header("Pragma", "no-cache")
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return null
+                val html = resp.body?.string() ?: return null
+                val text = html.replace(Regex("<[^>]+>"), " ").replace(Regex("\\s+"), " ")
+                val issueMatch = Regex("第(20\\d{5}|\\d{5})期").find(text) ?: return null
+                val rawIssue = issueMatch.groupValues[1]
+                val issue = if (rawIssue.length == 5) "20$rawIssue" else rawIssue
+                val dateMatch = Regex("开奖日期[:：\\s]*(\\d{4}-\\d{2}-\\d{2})").find(text)
+                val drawDate = dateMatch?.groupValues?.get(1) ?: ""
+                val expectedCount = if (type == LotteryType.PL5) 5 else 3
+                val numMatch = Regex("((?:\\d\\s*){$expectedCount})\\s*开奖号码").find(text)
+                    ?: Regex("开奖号码\\s*[:：]?\\s*((?:\\d\\s*){$expectedCount})").find(text)
+                    ?: return null
+                val balls = numMatch.groupValues[1].filter { it.isDigit() }.map { it - '0' }
+                if (balls.size != expectedCount) return null
+                LotteryDraw(
+                    lotteryType = type,
+                    issue = issue,
+                    drawDate = drawDate,
+                    redBalls = balls,
+                    blueBalls = emptyList(),
+                    poolAmount = "网易极速",
+                    salesAmount = "--",
+                    firstPrizeCount = 0,
+                    firstPrizeAmount = "--",
+                    isLiveData = true
+                )
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun fetchFromCwl(
