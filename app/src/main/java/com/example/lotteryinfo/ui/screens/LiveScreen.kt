@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Refresh
@@ -29,6 +30,7 @@ import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -378,22 +380,12 @@ val url = request?.url?.toString() ?: return false; val lowerUrl = url.lowercase
         if (loadError != null) { Box(modifier = Modifier.fillMaxSize().background(Color(0xFF14161A)).padding(24.dp), contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) { Text(text = loadError ?: "", color = Color.White, style = MaterialTheme.typography.bodyLarge); Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { Button(onClick = { loadError = null; webViewRef?.reload() }) { Text("重新加载") }; Button(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(activeSource.url))) }) { Text("用系统浏览器打开") } } } } }
             // 全屏模式下右上角保留退出全屏悬浮按钮
             if (isFullscreen) {
-                FilledTonalIconButton(
-                    onClick = {
-                        if (customVideoView != null) exitVideoCustomView()
-                       webViewRef?.evaluateJavascript(buildFullscreenJs(false), null)
-                       onFullscreenChange(false)
-                    },
-                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                        containerColor = Color.Black.copy(alpha = 0.65f),
-                        contentColor = Color.White
-                    ),
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(14.dp)
-                ) {
-                    Icon(Icons.Default.FullscreenExit, contentDescription = "退出全屏")
-                }
+                Row(modifier = Modifier.align(Alignment.TopCenter).padding(12.dp).background(Color.Black.copy(alpha = 0.65f), RoundedCornerShape(24.dp)).padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    IconButton(onClick = { if (customVideoView != null) exitVideoCustomView(); webViewRef?.evaluateJavascript(buildFullscreenJs(false), null); onFullscreenChange(false) }, modifier = Modifier.size(36.dp)) { Icon(Icons.Filled.ArrowBack, contentDescription = "返回", tint = Color.White, modifier = Modifier.size(20.dp)) }
+                    OFFICIAL_SOURCES.forEach { source -> val isSelected = source.id == activeSource.id; val shortLabel = if (source.id == "fc_live") "福彩" else "体彩"; Surface(onClick = { activeSource = source }, shape = RoundedCornerShape(16.dp), color = if (isSelected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.15f)) { Text(text = shortLabel, color = Color.White, style = MaterialTheme.typography.labelMedium, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) } }
+                    IconButton(onClick = { webViewRef?.reload() }, modifier = Modifier.size(36.dp)) { Icon(Icons.Filled.Refresh, contentDescription = "刷新", tint = Color.White, modifier = Modifier.size(20.dp)) }
+                    
+            IconButton(onClick = { if (customVideoView != null) exitVideoCustomView(); webViewRef?.evaluateJavascript(buildFullscreenJs(false), null); onFullscreenChange(false) }, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.FullscreenExit, contentDescription = "退出全屏", tint = Color.White, modifier = Modifier.size(20.dp)) }
             }
         }
     }
