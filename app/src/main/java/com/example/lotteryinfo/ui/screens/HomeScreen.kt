@@ -1,5 +1,10 @@
 package com.example.lotteryinfo.ui.screens
-
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -61,8 +66,9 @@ fun HomeScreen(
     var statusText by remember { mutableStateOf("正在同步全部彩种最新开奖...") }
     var isLoading by remember { mutableStateOf(true) }
     var refreshTrigger by remember { mutableIntStateOf(0) }
-
+    var sinaSyncTrigger by remember { mutableIntStateOf(1) }
     LaunchedEffect(refreshTrigger) {
+      if (refreshTrigger > 0) sinaSyncTrigger++
         isLoading = true
         val res = LotteryRepository.fetchLatestAll()
         draws = res.draws
@@ -75,6 +81,7 @@ fun HomeScreen(
             val minutes = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
             val intervalMs = if (minutes in (21 * 60 + 10)..(21 * 60 + 50)) 15_000L else 60_000L
             delay(intervalMs)
+            if (minutes in (21 * 60 + 10)..(21 * 60 + 50)) sinaSyncTrigger++
             val res = LotteryRepository.fetchLatestAll()
             draws = res.draws
             statusText = res.statusMessage
@@ -92,7 +99,8 @@ fun HomeScreen(
         ScreenSizeClass.EXPANDED -> 3
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
         if (isLoading) {
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         }
@@ -143,6 +151,7 @@ fun HomeScreen(
             }
         }
     }
+    AndroidView(modifier = Modifier.size(1.dp).alpha(0f), factory = { ctx -> WebView(ctx).apply { settings.javaScriptEnabled = true; settings.domStorageEnabled = true; webViewClient = object : WebViewClient() { override fun onPageFinished(view: WebView?, url: String?) { view?.postDelayed({ view.evaluateJavascript("(function(){var t=document.body?document.body.innerText:'';var m=t.match(/福彩3D[\\\\s\\\\S]{0,80}?(\\\\d{7})[\\\\s\\\\S]{0,40}?(\\\\d)\\\\s+(\\\\d)\\\\s+(\\\\d)/);return m?(m[1]+'|'+m[2]+','+m[3]+','+m[4]):'';})()") { raw -> val s = raw?.trim('"')?.trim() ?: ""; if (s.contains("|")) { val p = s.split("|"); val issue = p[0]; val nums = p.getOrNull(1)?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList(); if (issue.length == 7 && nums.size == 3) { val fastDraw = LotteryDraw(LotteryType.FC3D, issue, "今日开奖 (新浪极速)", nums, emptyList(), "固定派奖", "--", 0, "1040 元", isLiveData = true); LotteryRepository.updateFastLatest(fastDraw); val curIssue = draws.firstOrNull { it.lotteryType == LotteryType.FC3D }?.issue?.toLongOrNull() ?: 0L; if ((issue.toLongOrNull() ?: 0L) > curIssue) { draws = draws.map { if (it.lotteryType == LotteryType.FC3D) fastDraw else it }.let { list -> if (list.any { it.lotteryType == LotteryType.FC3D }) list else listOf(fastDraw) + list }; statusText = "已极速同步新浪最新开奖" } } } } }, 1500L) } } } }, update = { w -> if (w.tag != sinaSyncTrigger) { w.tag = sinaSyncTrigger; w.loadUrl("https://lotto.sina.cn/open") } }) }
 }
 
 @Composable
