@@ -3,6 +3,7 @@ package com.example.lotteryinfo.ui.screens
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.view.View
 import android.view.ViewGroup
@@ -11,33 +12,20 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -45,10 +33,14 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import com.example.lotteryinfo.model.LotteryOrg
 import com.example.lotteryinfo.ui.layout.ScreenSizeClass
-import com.example.lotteryinfo.model.LotteryOrg; import kotlinx.coroutines.delay; import java.util.Calendar; import java.util.TimeZone
+import kotlinx.coroutines.delay
+import java.util.Calendar
+import java.util.TimeZone
 
-private data class OfficialLiveSource(
+data class OfficialLiveSource(
     val id: String,
     val label: String,
     val url: String
@@ -59,44 +51,196 @@ private val OFFICIAL_SOURCES = listOf(
     OfficialLiveSource("tc_live", "体彩官方直播", "https://m.lottery.gov.cn/kjzb/")
 )
 
-private const val CWL_PURIFY_JS = """
-        (function() { function purifyCwl() { var styleId = 'cwl-purify-style'; if (!document.getElementById(styleId)) { var style = document.createElement('style'); style.id = styleId; style.textContent = 'html, body { width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important; margin-top: 0 !important; padding-top: 0 !important; } body { padding-top: 64px !important; box-sizing: border-box !important; }'; (document.head || document.documentElement).appendChild(style); } var hideTabs = ['开奖公告', '往期开奖公告', '往期开奖视频', '开奖流程', '走进开奖现场', '开奖信息发布渠道']; var allEls = document.querySelectorAll('header, nav, footer, section, form, ul, li,p,  a, span, button, div'); for (var i = 0; i < allEls.length; i++) { var el = allEls[i]; if (el === document.body || el === document.documentElement) continue; if (el.querySelector('video, iframe')) continue; var txt = (el.innerText || el.textContent || '').trim(); if ((txt.indexOf('双色球：') !== -1 || txt.indexOf('快乐8：') !== -1 || txt.indexOf('七乐彩：') !== -1 || txt.indexOf('福彩3D：') !== -1) && txt.length < 500) { el.style.display = 'none'; continue; } if (hideTabs.indexOf(txt) !== -1 && el.children.length <= 2) { el.style.display = 'none'; continue; } if (txt === '开奖直播' && el.children.length <= 3) { el.style.display = 'none'; continue; } if ((txt.indexOf('推荐使用最新版') !== -1 || txt.indexOf('360浏览器') !== -1 || txt.indexOf('鸿蒙用户') !== -1) && txt.length < 500) { el.style.display = 'none'; continue; } if (txt.indexOf('开奖直播') === -1) { if ((txt.indexOf('客服热线') !== -1 || txt.indexOf('954168') !== -1 || txt.indexOf('中国福利彩票官方网站') !== -1) && txt.length < 300) { el.style.display = 'none'; continue; } var hasSearchBtn = (txt.indexOf('搜索') !== -1) || !!el.querySelector('input[value*="搜索"], button, [type="submit"], [type="button"]'); if (el.querySelector('input') && hasSearchBtn && txt.length < 150) { el.style.display = 'none'; continue; } if (txt.indexOf('阳光开奖') !== -1 && (txt.indexOf('福彩游戏') !== -1 || txt.indexOf('资料库') !== -1) && txt.length < 300) { el.style.display = 'none'; continue; } if (txt.indexOf('首页') !== -1 && txt.indexOf('游戏') !== -1 && txt.indexOf('公益') !== -1 && txt.indexOf('开奖') !== -1 && txt.length < 120) { el.style.display = 'none'; continue; } } try { var rect = el.getBoundingClientRect(); if (txt === '' && !el.querySelector('img, svg, video, iframe, canvas, input') && rect.top >= 0 && rect.top < 260 && rect.height > 0 && rect.height < 120 && rect.width >= window.innerWidth * 0.7) { el.style.display = 'none'; continue; } var cs = window.getComputedStyle(el); if (cs && cs.position === 'fixed') { if (rect.height > 0 && rect.bottom >= window.innerHeight - 20 && rect.top >= window.innerHeight * 0.5) { el.style.display = 'none'; } } } catch (e) {} } } purifyCwl(); setTimeout(purifyCwl, 600); setTimeout(purifyCwl, 1800); })();
-"""
+private val CWL_PURIFY_JS = """
+(function() {
+  var STYLE_ID = 'cwl-purify-style';
+  if (!document.getElementById(STYLE_ID)) {
+    var s = document.createElement('style');
+    s.id = STYLE_ID;
+    s.textContent = 'html, body { background: #111315 !important; overflow-x: hidden !important; margin: 0 !important; padding: 0 !important; }';
+    (document.head || document.documentElement).appendChild(s);
+  }
 
-private const val LOTTERY_PURIFY_JS = """
-    (function() {
-        var els = document.querySelectorAll('header, nav, div, h1, h2, h3, p, span, section');
-        for (var i = 0; i < els.length; i++) {
-            var el = els[i];
-            if (el.querySelector('video, iframe')) continue;
-            var txt = (el.innerText || '').trim();
-            if (txt.length > 0 && txt.length < 20 && (txt === '相约体彩' || txt === '开奖直播' || txt.indexOf('相约体彩') !== -1)) {
-                el.style.display = 'none';
-            }
-            if (txt.indexOf('开奖直播合作平台') !== -1 && txt.indexOf('往期开奖') === -1 && txt.indexOf('21点25') === -1 && txt.length < 800) { el.style.display = 'none'; }
-            if (txt.indexOf('体彩开奖') !== -1 && (txt.indexOf('大乐透') !== -1 || txt.indexOf('排列') !== -1 || txt.indexOf('7星彩') !== -1 || txt.indexOf('开奖号码') !== -1) && txt.indexOf('往期开奖') === -1 && txt.indexOf('21点25') === -1 && txt.length < 1500) { el.style.display = 'none'; }
+  function findPlayer() {
+    var media = document.querySelector('video, iframe');
+    if (media) {
+      var cur = media;
+      while (cur && cur.parentElement && cur.parentElement !== document.body) {
+        var r = cur.parentElement.getBoundingClientRect();
+        var txt = (cur.parentElement.innerText || '');
+        if (txt.indexOf('往期开奖') !== -1 || txt.indexOf('推荐使用最新版') !== -1 || r.height > 520) {
+          return cur;
         }
-        if (document.body) {
-            document.body.style.marginTop = '0px';
-            document.body.style.paddingTop = '4px';
+        cur = cur.parentElement;
+      }
+      return cur;
+    }
+    var all = document.querySelectorAll('div, section');
+    var best = null;
+    for (var i = 0; i < all.length; i++) {
+      var el = all[i];
+      var t = el.innerText || '';
+      if (t.indexOf('距离直播还有') !== -1 || t.indexOf('正在直播') !== -1 || t.indexOf('开奖直播') !== -1) {
+        if (t.indexOf('往期开奖') === -1 && t.indexOf('推荐使用最新版') === -1) {
+          var rect = el.getBoundingClientRect();
+          if (rect.height >= 100 && rect.height <= 480 && rect.width >= 150) {
+            best = el;
+          }
         }
-        var containers = document.querySelectorAll('main, .main, .content, .container, .card, #app > div, body > div');
-        for (var j = 0; j < containers.length; j++) {
-            var c = containers[j];
-            if (c.style.display !== 'none') {
-                c.style.marginTop = '0px';
-                c.style.paddingTop = '4px';
-            }
+      }
+    }
+    return best;
+  }
+
+  function purifyCwl() {
+    document.documentElement.style.setProperty('background', '#111315', 'important');
+    document.documentElement.style.setProperty('overflow-x', 'hidden', 'important');
+    if (document.body) {
+      document.body.style.setProperty('background', '#111315', 'important');
+      document.body.style.setProperty('overflow-x', 'hidden', 'important');
+      document.body.style.setProperty('margin', '0', 'important');
+      document.body.style.setProperty('padding', '0', 'important');
+    }
+
+    var player = findPlayer();
+    if (!player) return;
+
+    var cur = player;
+    while (cur && cur !== document.body && cur.parentElement) {
+      var parent = cur.parentElement;
+      var children = parent.children;
+      for (var i = 0; i < children.length; i++) {
+        var sib = children[i];
+        if (sib !== cur && sib.tagName !== 'SCRIPT' && sib.tagName !== 'STYLE' && sib.tagName !== 'LINK') {
+          sib.style.setProperty('display', 'none', 'important');
         }
-        var videos = document.querySelectorAll('video');
-        for (var k = 0; k < videos.length; k++) {
-            videos[k].setAttribute('controls', 'controls');
-            videos[k].setAttribute('playsinline', 'true');
-            videos[k].setAttribute('webkit-playsinline', 'true');
+      }
+      if (parent !== document.body) {
+        parent.style.setProperty('margin', '0', 'important');
+        parent.style.setProperty('padding', '0', 'important');
+        parent.style.setProperty('background', 'transparent', 'important');
+      }
+      cur = parent;
+    }
+
+    var fixedEls = document.querySelectorAll('*');
+    for (var j = 0; j < fixedEls.length; j++) {
+      var fel = fixedEls[j];
+      if (fel === player || player.contains(fel) || fel.contains(player)) continue;
+      var st = window.getComputedStyle(fel);
+      if (st.position === 'fixed' || st.position === 'sticky') {
+        fel.style.setProperty('display', 'none', 'important');
+      }
+    }
+  }
+
+  purifyCwl();
+  setTimeout(purifyCwl, 600);
+  setTimeout(purifyCwl, 1800);
+})();
+""".trimIndent()
+
+private val LOTTERY_PURIFY_JS = """
+(function() {
+  var STYLE_ID = 'tc-purify-style';
+  if (!document.getElementById(STYLE_ID)) {
+    var s = document.createElement('style');
+    s.id = STYLE_ID;
+    s.textContent = 'html, body { background: #111315 !important; overflow-x: hidden !important; margin: 0 !important; padding: 0 !important; }';
+    (document.head || document.documentElement).appendChild(s);
+  }
+
+  function isExcludedBlock(t) {
+    return t.indexOf('合作平台') !== -1 || t.indexOf('体彩开奖') !== -1 || t.indexOf('往期') !== -1;
+  }
+
+  function findTcLiveCard() {
+    var media = document.querySelector('video, iframe');
+    if (media) {
+      var cur = media;
+      while (cur && cur.parentElement && cur.parentElement !== document.body) {
+        var r = cur.parentElement.getBoundingClientRect();
+        var txt = cur.parentElement.innerText || '';
+        if (isExcludedBlock(txt) || /\b\d{2}-\d{2}\b/.test(txt) || r.height > 520) {
+          return cur;
         }
-            var lStyleId = 'lottery-purify-style'; if (!document.getElementById(lStyleId)) { var lStyle = document.createElement('style'); lStyle.id = lStyleId; lStyle.textContent = 'html, body { width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important; background: #FFFFFF !important; } main, .main, .content, .container, .card, #app > div, body > div { width: 100% !important; max-width: 100% !important; box-sizing: border-box !important; margin: 0 !important; }'; (document.head || document.documentElement).appendChild(lStyle); }
-            })();
-"""
+        cur = cur.parentElement;
+      }
+      return cur;
+    }
+    var all = document.querySelectorAll('div, section');
+    var best = null;
+    for (var i = 0; i < all.length; i++) {
+      var el = all[i];
+      var t = el.innerText || '';
+      if (t.indexOf('每晚21点25') !== -1 || t.indexOf('敬请期待') !== -1 || t.indexOf('开奖直播') !== -1) {
+        if (!isExcludedBlock(t) && !/\b\d{2}-\d{2}\b/.test(t) && t.indexOf('相约体彩') === -1) {
+          var rect = el.getBoundingClientRect();
+          if (rect.height >= 120 && rect.height <= 500 && rect.width >= 150) {
+            best = el;
+          }
+        }
+      }
+    }
+    return best;
+  }
+
+  function purifyTc() {
+    document.documentElement.style.setProperty('background', '#111315', 'important');
+    document.documentElement.style.setProperty('overflow-x', 'hidden', 'important');
+    if (document.body) {
+      document.body.style.setProperty('background', '#111315', 'important');
+      document.body.style.setProperty('overflow-x', 'hidden', 'important');
+      document.body.style.setProperty('margin', '0', 'important');
+      document.body.style.setProperty('padding', '0', 'important');
+    }
+
+    var card = findTcLiveCard();
+    if (!card) return;
+
+    var cur = card;
+    while (cur && cur !== document.body && cur.parentElement) {
+      var parent = cur.parentElement;
+      var children = parent.children;
+      for (var i = 0; i < children.length; i++) {
+        var sib = children[i];
+        if (sib !== cur && sib.tagName !== 'SCRIPT' && sib.tagName !== 'STYLE' && sib.tagName !== 'LINK') {
+          sib.style.setProperty('display', 'none', 'important');
+        }
+      }
+      if (parent !== document.body) {
+        parent.style.setProperty('margin', '0 auto', 'important');
+        parent.style.setProperty('padding', '0', 'important');
+        parent.style.setProperty('background', 'transparent', 'important');
+        parent.style.setProperty('display', 'flex', 'important');
+        parent.style.setProperty('flex-direction', 'column', 'important');
+        parent.style.setProperty('align-items', 'center', 'important');
+      }
+      cur = parent;
+    }
+
+    var allEls = document.querySelectorAll('div, section, header, footer, ul, nav');
+    for (var j = 0; j < allEls.length; j++) {
+      var el = allEls[j];
+      if (el === card || card.contains(el) || el.contains(card)) continue;
+      var txt = el.innerText || '';
+      if (
+        txt.indexOf('相约体彩') !== -1 ||
+        txt.indexOf('开奖直播合作平台') !== -1 ||
+        txt.indexOf('体彩开奖') !== -1 ||
+        txt.indexOf('往期') !== -1 ||
+        /\b\d{2}-\d{2}\b/.test(txt)
+      ) {
+        el.style.setProperty('display', 'none', 'important');
+      }
+    }
+  }
+
+  purifyTc();
+  setTimeout(purifyTc, 600);
+  setTimeout(purifyTc, 1800);
+})();
+""".trimIndent()
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -108,282 +252,406 @@ fun LiveScreen(
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
+    val configuration = LocalConfiguration.current
 
-    var activeSource by remember { mutableStateOf(OFFICIAL_SOURCES.first()) }
-    var webViewRef by remember { mutableStateOf<WebView?>(null) }
+    var activeSource by remember {
+        mutableStateOf(
+            if (initialOrg == LotteryOrg.TC) OFFICIAL_SOURCES[1] else OFFICIAL_SOURCES[0]
+        )
+    }
     var isLoading by remember { mutableStateOf(true) }
-    LaunchedEffect(initialOrg) { val targetId = if (initialOrg == LotteryOrg.TC) "tc_live" else "fc_live"; OFFICIAL_SOURCES.find { it.id == targetId }?.let { activeSource = it } }
-    var canGoBack by remember { mutableStateOf(false) }
-
+    var webViewRef by remember { mutableStateOf<WebView?>(null) }
     var customVideoView by remember { mutableStateOf<View?>(null) }
     var customViewCallback by remember { mutableStateOf<WebChromeClient.CustomViewCallback?>(null) }
+    var countdownText by remember { mutableStateOf("") }
+
+    LaunchedEffect(initialOrg) {
+        val targetId = if (initialOrg == LotteryOrg.TC) "tc_live" else "fc_live"
+        OFFICIAL_SOURCES.find { it.id == targetId }?.let { target ->
+            if (activeSource.id != target.id) {
+                activeSource = target
+                isLoading = true
+                webViewRef?.stopLoading()
+                webViewRef?.loadUrl(target.url)
+            }
+        }
+    }
+
+    LaunchedEffect(activeSource.id) {
+        if (activeSource.id != "tc_live") {
+            countdownText = ""
+            return@LaunchedEffect
+        }
+        val tz = TimeZone.getTimeZone("Asia/Shanghai")
+        while (true) {
+            val now = Calendar.getInstance(tz)
+            val h = now.get(Calendar.HOUR_OF_DAY)
+            val m = now.get(Calendar.MINUTE)
+            val s = now.get(Calendar.SECOND)
+            val secOfDay = h * 3600 + m * 60 + s
+            val startSec = 21 * 3600 + 20 * 60
+            val endSec = 21 * 3600 + 40 * 60
+            countdownText = if (secOfDay in startSec until endSec) {
+                "正在体彩开奖直播中"
+            } else {
+                val diff = if (secOfDay < startSec) {
+                    startSec - secOfDay
+                } else {
+                    24 * 3600 - secOfDay + startSec
+                }
+                val dh = diff / 3600
+                val dm = (diff % 3600) / 60
+                val ds = diff % 60
+                "距离体彩直播还有：%02d:%02d:%02d".format(dh, dm, ds)
+            }
+            delay(1000L)
+        }
+    }
 
     val exitVideoCustomView: () -> Unit = {
-        customVideoView?.let { v ->
-            (v.parent as? ViewGroup)?.removeView(v)
-        }
-        customVideoView = null
         customViewCallback?.onCustomViewHidden()
+        customVideoView = null
         customViewCallback = null
-        onFullscreenChange(false)
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-        activity?.let { act ->
-            WindowCompat.getInsetsController(act.window, act.window.decorView)
-                .show(WindowInsetsCompat.Type.systemBars())
-        }
     }
 
     val handleBackAction: () -> Unit = {
-        if (customVideoView != null) {
-            exitVideoCustomView()
-        } else if (isFullscreen) {
-            onFullscreenChange(false)
-            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-            activity?.let { act ->
-                WindowCompat.getInsetsController(act.window, act.window.decorView)
-                    .show(WindowInsetsCompat.Type.systemBars())
+        when {
+            customVideoView != null -> exitVideoCustomView()
+            isFullscreen -> {
+                activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                onFullscreenChange(false)
             }
-        } else if (webViewRef?.canGoBack() == true) {
-            webViewRef?.goBack()
+            else -> onFullscreenChange(false)
         }
     }
 
-    BackHandler(enabled = customVideoView != null || isFullscreen || canGoBack) {
+    BackHandler(enabled = customVideoView != null || isFullscreen) {
         handleBackAction()
     }
 
-    DisposableEffect(Unit) {
-        onDispose {
-            exitVideoCustomView()
-            webViewRef?.destroy()
-            webViewRef = null
+    LaunchedEffect(configuration.orientation, customVideoView) {
+        if (customVideoView != null) {
+            onFullscreenChange(true)
+        } else if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            onFullscreenChange(true)
+        } else if (configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
+            onFullscreenChange(false)
         }
     }
 
-    LaunchedEffect(activeSource.id, webViewRef) {
-        val wv = webViewRef ?: return@LaunchedEffect
+    DisposableEffect(isFullscreen, customVideoView) {
+        val window = activity?.window
+        val controller = window?.let { WindowCompat.getInsetsController(it, it.decorView) }
+        if (isFullscreen || customVideoView != null) {
+            controller?.systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller?.hide(WindowInsetsCompat.Type.systemBars())
+        } else {
+            controller?.show(WindowInsetsCompat.Type.systemBars())
+        }
+        onDispose {
+            controller?.show(WindowInsetsCompat.Type.systemBars())
+            if (customVideoView == null) {
+                activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            }
+        }
+    }
+
+    val switchSource: (OfficialLiveSource) -> Unit = { source ->
+        if (activeSource.id != source.id) {
+            if (customVideoView != null) {
+                exitVideoCustomView()
+            }
+            activeSource = source
+            isLoading = true
+            webViewRef?.stopLoading()
+            webViewRef?.loadUrl(source.url)
+        }
+    }
+
+    val refreshSource: () -> Unit = {
+        if (customVideoView != null) {
+            exitVideoCustomView()
+        }
         isLoading = true
-        wv.stopLoading()
-        wv.loadUrl("about:blank")
-        wv.loadUrl(activeSource.url)
+        webViewRef?.stopLoading()
+        webViewRef?.loadUrl(activeSource.url)
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(Color(0xFF111315))
     ) {
-        // 第 1 层：WebView
-        AndroidView(
-            factory = { ctx ->
-                WebView(ctx).apply {
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-                    settings.apply {
-                        javaScriptEnabled = true
-                        domStorageEnabled = true
-                        mediaPlaybackRequiresUserGesture = false
-                        useWideViewPort = true
-                        loadWithOverviewMode = true
-                        mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                        userAgentString = settings.userAgentString + " Mobile"
-                    }
-                    webViewClient = object : WebViewClient() {
-                        override fun shouldOverrideUrlLoading(
-                            view: WebView?,
-                            request: WebResourceRequest?
-                        ): Boolean {
-                            val targetUrl = request?.url?.toString() ?: return false
-                            return !targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")
-                        }
-
-                        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                            if (url != null && url != "about:blank") {
-                                isLoading = true
-                                canGoBack = view?.canGoBack() == true
-                            }
-                        }
-
-                        override fun onPageFinished(view: WebView?, url: String?) {
-                            if (url == null || url == "about:blank") return
-                            isLoading = false
-                            canGoBack = view?.canGoBack() == true
-                            if (url.contains("cwl.gov.cn")) {
-                                view?.evaluateJavascript(CWL_PURIFY_JS, null)
-                            } else if (url.contains("lottery.gov.cn")) {
-                                view?.evaluateJavascript(LOTTERY_PURIFY_JS, null)
-                            }
-                        }
-                    }
-                    webChromeClient = object : WebChromeClient() {
-                        override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
-                            if (view == null) return
-                            if (customVideoView != null) {
-                                callback?.onCustomViewHidden()
-                                return
-                            }
-                            customVideoView = view
-                            customViewCallback = callback
-                            onFullscreenChange(true)
-                            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                            activity?.let { act ->
-                                WindowCompat.getInsetsController(act.window, act.window.decorView)
-                                    .hide(WindowInsetsCompat.Type.systemBars())
-                            }
-                        }
-
-                        override fun onHideCustomView() {
-                            exitVideoCustomView()
-                        }
-                    }
-                    webViewRef = this
-                }
-            },
-            update = {},
-            modifier = Modifier.fillMaxSize()
-        )
-
-        // 第 2 层：原生视频全屏视图（渲染在 Box 内，不添加到 decorView）
-        customVideoView?.let { videoView ->
-            AndroidView(
-                factory = {
-                    (videoView.parent as? ViewGroup)?.removeView(videoView)
-                    videoView
-                },
-                modifier = Modifier.fillMaxSize()
-            )
-        }
-
-        // 简短加载提示
-        if (isLoading) {
-            Surface(
-                modifier = Modifier.align(Alignment.Center),
-                shape = RoundedCornerShape(16.dp),
-                color = Color(0xCC161822)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        color = Color.White,
-                        strokeWidth = 2.dp
-                    )
-                    Text(
-                        text = "正在加载${activeSource.label}...",
-                        color = Color.White,
-                        fontSize = 13.sp
-                    )
-                }
-            }
-        }
-
-        // 第 3 层（永远在最上层）：居中悬浮的 4 项半透明胶囊
-        Surface(
+        Column(
             modifier = Modifier
-                .align(Alignment.TopCenter)
-                .statusBarsPadding()
-                .padding(top = 8.dp, start = 12.dp, end = 12.dp),
-            shape = RoundedCornerShape(24.dp),
-            color = Color(0xCC161822)
+                .fillMaxSize()
+                .background(Color(0xFF111315))
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
             ) {
-                // 1. 大号「← 返回」按钮
-                Surface(
-                    onClick = handleBackAction,
-                    shape = RoundedCornerShape(18.dp),
-                    color = Color(0x33FFFFFF)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.ArrowBack,
-                            contentDescription = "返回",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Text(
-                            text = "返回",
-                            color = Color.White,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
+                LiveTopCapsule(
+                    activeSource = activeSource,
+                    onBack = handleBackAction,
+                    onSelectSource = switchSource,
+                    onRefresh = refreshSource
+                )
+            }
 
-                // 2 & 3. 「福彩」「体彩」快捷切换按钮
-                OFFICIAL_SOURCES.forEach { source ->
-                    val selected = activeSource.id == source.id
-                    val shortLabel = if (source.id == "fc_live") "福彩" else "体彩"
-                    Surface(
-                        onClick = {
-                            if (customVideoView != null) {
-                                exitVideoCustomView()
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                AndroidView(
+                    factory = { ctx ->
+                        WebView(ctx).apply {
+                            layoutParams = ViewGroup.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                            setBackgroundColor(android.graphics.Color.parseColor("#111315"))
+                            settings.apply {
+                                javaScriptEnabled = true
+                                domStorageEnabled = true
+                                mediaPlaybackRequiresUserGesture = false
+                                useWideViewPort = true
+                                loadWithOverviewMode = true
+                                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                                cacheMode = WebSettings.LOAD_DEFAULT
+                                userAgentString =
+                                    "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
                             }
-                            activeSource = source
-                        },
-                        shape = RoundedCornerShape(18.dp),
-                        color = if (selected) Color(0xFFD32F2F) else Color(0x26FFFFFF)
-                    ) {
-                        Text(
-                            text = shortLabel,
-                            color = Color.White,
-                            fontSize = 13.sp,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                        )
-                    }
-                }
+                            webViewClient = object : WebViewClient() {
+                                override fun shouldOverrideUrlLoading(
+                                    view: WebView?,
+                                    request: WebResourceRequest?
+                                ): Boolean = false
 
-                // 4. 「刷新」按钮
-                Surface(
-                    onClick = {
-                        if (customVideoView != null) {
-                            exitVideoCustomView()
+                                override fun onPageStarted(
+                                    view: WebView?,
+                                    url: String?,
+                                    favicon: Bitmap?
+                                ) {
+                                    super.onPageStarted(view, url, favicon)
+                                    isLoading = true
+                                }
+
+                                override fun onPageFinished(view: WebView?, url: String?) {
+                                    super.onPageFinished(view, url)
+                                    isLoading = false
+                                    val js = if (url?.contains("lottery.gov.cn") == true) {
+                                        LOTTERY_PURIFY_JS
+                                    } else {
+                                        CWL_PURIFY_JS
+                                    }
+                                    view?.evaluateJavascript(js, null)
+                                }
+                            }
+                            webChromeClient = object : WebChromeClient() {
+                                override fun onShowCustomView(
+                                    view: View?,
+                                    callback: CustomViewCallback?
+                                ) {
+                                    if (view == null) return
+                                    if (customVideoView != null) {
+                                        callback?.onCustomViewHidden()
+                                        return
+                                    }
+                                    customVideoView = view
+                                    customViewCallback = callback
+                                    onFullscreenChange(true)
+                                }
+
+                                override fun onHideCustomView() {
+                                    customVideoView = null
+                                    customViewCallback?.onCustomViewHidden()
+                                    customViewCallback = null
+                                }
+                            }
+                            webViewRef = this
+                            loadUrl(activeSource.url)
                         }
-                        isLoading = true
-                        webViewRef?.stopLoading()
-                        webViewRef?.loadUrl(activeSource.url)
                     },
-                    shape = RoundedCornerShape(18.dp),
-                    color = Color(0x26FFFFFF)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                if (isLoading) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0xFF111315)),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.Refresh,
-                            contentDescription = "刷新",
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = "刷新",
-                            color = Color.White,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium
-                        )
+                        CircularProgressIndicator(color = Color(0xFFE53935))
                     }
                 }
             }
+
+            if (activeSource.id == "tc_live" && countdownText.isNotEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = countdownText,
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
         }
-        if (activeSource.id == "tc_live" && customVideoView == null) {
-            var countdownText by remember { mutableStateOf("") }
-            LaunchedEffect(activeSource.id) { val bjTz = TimeZone.getTimeZone("Asia/Shanghai"); while (true) { val now = Calendar.getInstance(bjTz); val nowSec = now.get(Calendar.HOUR_OF_DAY) * 3600 + now.get(Calendar.MINUTE) * 60 + now.get(Calendar.SECOND); val startSec = 21 * 3600 + 20 * 60; val endSec = 21 * 3600 + 40 * 60; countdownText = if (nowSec in startSec..endSec) "正在体彩开奖直播中" else { val diff = if (nowSec < startSec) startSec - nowSec else (24 * 3600 - nowSec) + startSec; val hh = (diff / 3600).toString().padStart(2, '0'); val mm = ((diff % 3600) / 60).toString().padStart(2, '0'); val ss = (diff % 60).toString().padStart(2, '0'); "距离直播还有：$hh:$mm:$ss" }; delay(1000L) } }
-            Surface(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp), shape = RoundedCornerShape(18.dp), color = Color(0xCC111827)) { Text(text = countdownText, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)) }
+
+        if (customVideoView != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black)
+            ) {
+                AndroidView(
+                    factory = { ctx ->
+                        FrameLayout(ctx).apply {
+                            layoutParams = ViewGroup.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                            (customVideoView?.parent as? ViewGroup)?.removeView(customVideoView)
+                            addView(
+                                customVideoView,
+                                FrameLayout.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                )
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .statusBarsPadding()
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    LiveTopCapsule(
+                        activeSource = activeSource,
+                        onBack = handleBackAction,
+                        onSelectSource = switchSource,
+                        onRefresh = refreshSource
+                    )
+                }
+            }
         }
     }
 }
+
+@Composable
+private fun LiveTopCapsule(
+    activeSource: OfficialLiveSource,
+    onBack: () -> Unit,
+    onSelectSource: (OfficialLiveSource) -> Unit,
+    onRefresh: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = Color(0xCC1E2228),
+        tonalElevation = 4.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Surface(
+                onClick = onBack,
+                shape = RoundedCornerShape(18.dp),
+                color = Color(0x26FFFFFF)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.ArrowBack,
+                        contentDescription = "返回",
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = "返回",
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
+            Surface(
+                onClick = { onSelectSource(OFFICIAL_SOURCES[0]) },
+                shape = RoundedCornerShape(18.dp),
+                color = if (activeSource.id == "fc_live") Color(0xFFE53935) else Color.Transparent
+            ) {
+                Text(
+                    text = "福彩",
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = if (activeSource.id == "fc_live") FontWeight.Bold else FontWeight.Normal,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+            }
+
+            Surface(
+                onClick = { onSelectSource(OFFICIAL_SOURCES[1]) },
+                shape = RoundedCornerShape(18.dp),
+                color = if (activeSource.id == "tc_live") Color(0xFF1E88E5) else Color.Transparent
+            ) {
+                Text(
+                    text = "体彩",
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = if (activeSource.id == "tc_live") FontWeight.Bold else FontWeight.Normal,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+            }
+
+            Surface(
+                onClick = onRefresh,
+                shape = RoundedCornerShape(18.dp),
+                color = Color(0x26FFFFFF)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Refresh,
+                        contentDescription = "刷新",
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = "刷新",
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+    }
+}
+
