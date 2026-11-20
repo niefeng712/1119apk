@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.lotteryinfo.model.LotteryOrg
 import com.example.lotteryinfo.model.LotteryType
 import com.example.lotteryinfo.ui.layout.ScreenSizeClass
 import com.example.lotteryinfo.ui.layout.screenSizeClassFromWidth
@@ -92,6 +93,7 @@ private data class NavTab(val label: String, val title: String, val icon: ImageV
 fun LotteryMainApp() {
     var selectedTab by remember { mutableIntStateOf(0) }
     var historyLotteryType by remember { mutableStateOf(LotteryType.FC3D) }
+    var liveTargetOrg by remember { mutableStateOf(LotteryOrg.FC) }
     var isLiveFullscreen by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("lottery_prefs", Context.MODE_PRIVATE) }
@@ -130,10 +132,11 @@ fun LotteryMainApp() {
                             historyLotteryType = type
                             selectedTab = 2
                         },
-                        onOpenLive = { selectedTab = 1 }
+                        onOpenLive = { org -> liveTargetOrg = org; selectedTab = 1 }
                     )
                     1 -> LiveScreen(
                         sizeClass = sizeClass,
+                       initialOrg = liveTargetOrg,
                         isFullscreen = isLiveFullscreen,
                         onFullscreenChange = { isLiveFullscreen = it }
                     )
