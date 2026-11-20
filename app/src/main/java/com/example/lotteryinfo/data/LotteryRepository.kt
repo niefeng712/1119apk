@@ -65,6 +65,17 @@ object LotteryRepository {
     ): FetchResult = withContext(Dispatchers.IO) {
         try {
             val remote = when {
+type == LotteryType.FC3D && pageNo == 1 && type.cwlName != null -> coroutineScope {
+                val cwlDeferred = async { fetchFromCwl(type, type.cwlName, pageNo, pageSize) }
+                val sinaDeferred = async { fetchFc3dFastFromSina() }
+                val cwlList = cwlDeferred.await()
+                val sinaDraw = sinaDeferred.await()
+                if (sinaDraw != null && (cwlList.isEmpty() || (sinaDraw.issue.toLongOrNull() ?: 0L) > (cwlList.first().issue.toLongOrNull() ?: 0L))) {
+                    listOf(sinaDraw) + cwlList.filterNot { it.issue == sinaDraw.issue }
+                } else {
+                    cwlList
+                }
+}
                 type.cwlName != null -> fetchFromCwl(type, type.cwlName, pageNo, pageSize)
                 type.sportteryGameNo != null -> fetchFromSporttery(type, type.sportteryGameNo, pageNo, pageSize)
                 else -> emptyList()
@@ -106,11 +117,13 @@ object LotteryRepository {
         pageNo: Int,
         pageSize: Int
     ): List<LotteryDraw> {
-        val url = "${LotteryConfig.CWL_DRAW_API}?name=$cwlName&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=$pageNo&pageSize=$pageSize&week=&systemType=PC"
+        val url = "${LotteryConfig.CWL_DRAW_API}?name=$cwlName&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=$pageNo&pageSize=$pageSize&week=&systemType=PC&_t=${System.currentTimeMillis()}"
         val request = Request.Builder()
             .url(url)
             .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36")
             .header("Referer", "https://www.cwl.gov.cn/")
+            .header("Cache-Control", "no-cache, no-store")
+            .header("Pragma", "no-cache")
             .build()
 
         client.newCall(request).execute().use { response ->
@@ -157,17 +170,61 @@ object LotteryRepository {
         }
     }
 
+    private fun fetchFc3dFastFromSina(): LotteryDraw? {
+        return try {
+            val url = "https://" + "lotto.sina.cn/video/fcopen/?_t=${System.currentTimeMillis()}"
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36")
+                .header("Cache-Control", "no-cache, no-store")
+                .header("Pragma", "no-cache")
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
+                val html = response.body?.string() ?: return null
+                val section = Regex("福彩3D[\\s\\S]{0,1000}").find(html)?.value ?: html
+                val plain = section.replace(Regex("<[^>]+>"), " ").replace("&nbsp;", " ")
+                val issueMatch = Regex("(?:第\\s*)?(\\d{7})\\s*期").find(plain) ?: return null
+                val issue = issueMatch.groupValues[1]
+                val afterIssue = plain.substring(issueMatch.range.last + 1).take(200)
+                val dateMatch = Regex("(\\d{4}-\\d{2}-\\d{2})").find(plain)
+                val drawDate = dateMatch?.groupValues?.get(1)
+                    ?: java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.CHINA).format(java.util.Date())
+                val cleaned = afterIssue.replace(Regex("\\d{4}[-/年]\\d{1,2}[-/月]\\d{1,2}日?"), " ")
+                val numsMatch = Regex("\\b(\\d)\\s*[\\s,|/、]+\\s*(\\d)\\s*[\\s,|/、]+\\s*(\\d)\\b").find(cleaned)
+                    ?: return null
+                val balls = listOf(
+                    numsMatch.groupValues[1].toInt(),
+                    numsMatch.groupValues[2].toInt(),
+                    numsMatch.groupValues[3].toInt()
+                )
+                LotteryDraw(
+                    lotteryType = LotteryType.FC3D,
+                    issue = issue,
+                    drawDate = drawDate,
+                    redBalls = balls,
+                    blueBalls = emptyList(),
+                    isLiveData = true
+                )
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private fun fetchFromSporttery(
         type: LotteryType,
         gameNo: String,
         pageNo: Int,
         pageSize: Int
     ): List<LotteryDraw> {
-        val url = "${LotteryConfig.SPORTTERY_DRAW_API}?gameNo=$gameNo&provinceId=0&pageSize=$pageSize&isVerify=1&pageNo=$pageNo"
+        val url = "${LotteryConfig.SPORTTERY_DRAW_API}?gameNo=$gameNo&provinceId=0&pageSize=$pageSize&isVerify=1&pageNo=$pageNo&_t=${System.currentTimeMillis()}"
         val request = Request.Builder()
             .url(url)
             .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36")
             .header("Referer", "https://www.lottery.gov.cn/")
+            .header("Cache-Control", "no-cache, no-store")
+            .header("Pragma", "no-cache")
             .build()
 
         client.newCall(request).execute().use { response ->
@@ -184,11 +241,7 @@ object LotteryRepository {
                 val rawNums = item.optString("lotteryDrawResult")
                     .split(" ", ",", "+")
                     .mapNotNull { it.trim().toIntOrNull() }
-                val (reds, blues) = when {
-                    type == LotteryType.DLT && rawNums.size >= 7 -> rawNums.take(5) to rawNums.drop(5).take(2)
-                    type == LotteryType.QXC && rawNums.size >= 7 -> rawNums.take(6) to rawNums.drop(6).take(1)
-                    else -> rawNums to emptyList()
-                }
+                val (reds, blues) = rawNums to emptyList<Int>()
                 val pool = formatMoney(item.optString("poolBalanceAfterdraw").replace(",", ""))
                 val sales = formatMoney(item.optString("totalSaleAmount").replace(",", ""))
                 var firstCount = 0
@@ -230,22 +283,7 @@ object LotteryRepository {
 
     fun getFallbackHistory(type: LotteryType): List<LotteryDraw> {
         return when (type) {
-            LotteryType.SSQ -> listOf(
-                LotteryDraw(LotteryType.SSQ, "2026132", "2026-11-17 (示例)", listOf(3, 8, 14, 19, 25, 31), listOf(7), "21.40 亿元", "3.80 亿元", 6, "812.0 万元"),
-                LotteryDraw(LotteryType.SSQ, "2026131", "2026-11-15 (示例)", listOf(2, 11, 16, 22, 28, 33), listOf(12), "21.10 亿元", "4.10 亿元", 4, "940.0 万元"),
-                LotteryDraw(LotteryType.SSQ, "2026130", "2026-11-12 (示例)", listOf(5, 9, 13, 20, 24, 30), listOf(4), "20.80 亿元", "3.70 亿元", 9, "685.0 万元"),
-                LotteryDraw(LotteryType.SSQ, "2026129", "2026-11-10 (示例)", listOf(1, 7, 15, 18, 27, 32), listOf(15), "20.50 亿元", "3.90 亿元", 5, "860.0 万元"),
-                LotteryDraw(LotteryType.SSQ, "2026128", "2026-11-08 (示例)", listOf(4, 10, 17, 21, 26, 29), listOf(9), "20.20 亿元", "4.00 亿元", 7, "750.0 万元")
-            )
-            LotteryType.DLT -> listOf(
-                LotteryDraw(LotteryType.DLT, "2026132", "2026-11-16 (示例)", listOf(4, 12, 18, 26, 34), listOf(3, 9), "9.80 亿元", "3.10 亿元", 3, "1000.0 万元"),
-                LotteryDraw(LotteryType.DLT, "2026131", "2026-11-14 (示例)", listOf(2, 9, 15, 21, 30), listOf(5, 11), "9.50 亿元", "3.30 亿元", 2, "1000.0 万元"),
-                LotteryDraw(LotteryType.DLT, "2026130", "2026-11-11 (示例)", listOf(7, 14, 20, 27, 35), listOf(1, 8), "9.20 亿元", "2.90 亿元", 5, "890.0 万元")
-            )
-            LotteryType.KL8 -> listOf(
-                LotteryDraw(LotteryType.KL8, "2026292", "2026-11-17 (示例)", listOf(2, 5, 10, 17, 22, 25, 26, 36, 43, 45, 50, 51, 52, 57, 62, 64, 68, 70, 71, 75), emptyList(), "固定派奖", "1.12 亿元", 1, "500.0 万元")
-            )
-            LotteryType.FC3D -> listOf(
+           LotteryType.FC3D -> listOf(
                 LotteryDraw(LotteryType.FC3D, "2026310", "2026-11-17 (示例)", listOf(3, 7, 9), emptyList(), "固定派奖", "0.92 亿元", 0, "1040 元"),
                 LotteryDraw(LotteryType.FC3D, "2026309", "2026-11-16 (示例)", listOf(1, 5, 8), emptyList(), "固定派奖", "0.89 亿元", 0, "1040 元")
             )
@@ -255,13 +293,7 @@ object LotteryRepository {
             )
             LotteryType.PL5 -> listOf(
                 LotteryDraw(LotteryType.PL5, "2026310", "2026-11-17 (示例)", listOf(3, 6, 2, 9, 1), emptyList(), "固定派奖", "0.21 亿元", 12, "10.0 万元")
-            )
-            LotteryType.QXC -> listOf(
-                LotteryDraw(LotteryType.QXC, "2026132", "2026-11-17 (示例)", listOf(0, 0, 7, 0, 4, 2), listOf(7), "2.85 亿元", "0.24 亿元", 2, "500.0 万元")
-            )
-            LotteryType.QLC -> listOf(
-                LotteryDraw(LotteryType.QLC, "2026126", "2026-11-16 (示例)", listOf(4, 9, 15, 20, 23, 25, 30), listOf(7), "1200.0 万元", "680.0 万元", 1, "180.0 万元")
-            )
+         )
         }
     }
 }
