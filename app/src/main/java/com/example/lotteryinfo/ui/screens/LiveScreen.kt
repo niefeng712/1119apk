@@ -72,6 +72,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.ButtonDefaults
+
 
 private data class OfficialLiveSource(
     val id: String,
@@ -107,11 +110,10 @@ private const val PURIFY_PAGE_JS = """
   });
 })();
 """
-    private const val TC_CLEAN_JS = "(function(){var css='header,.header,.top-banner,.red-banner,.banner,.title-bar,nav,.nav,footer,.footer{display:none!important;}html,body{margin:0!important;padding:0!important;background:#f5f5f5!important;overflow-x:hidden!important;}.main,.content,.container,.live-wrap,.live-box,.video-container,.card,.box,.panel,main,section{padding-top:4px!important;padding-bottom:4px!important;margin-top:0!important;margin-bottom:4px!important;}@media(orientation:landscape){body>div,.main,.content,.container,.live-wrap,main{max-width:720px!important;margin:0 auto!important;}}video,.video-box,.video-wrap,.live-player,#player,iframe{width:100%!important;max-width:100%!important;aspect-ratio:16/9;max-height:75vh!important;object-fit:contain!important;display:block!important;margin:0 auto!important;}';var s=document.getElementById('apk-tc-style');if(!s){s=document.createElement('style');s.id='apk-tc-style';document.head.appendChild(s);}s.innerHTML=css;document.querySelectorAll('video').forEach(function(v){v.controls=true;v.setAttribute('controls','controls');v.setAttribute('playsinline','true');v.setAttribute('webkit-playsinline','true');});})();"
 
 private fun buildFullscreenJs(enable: Boolean): String = if (enable) "(function(){var s=document.getElementById('apk-fullscreen-style');if(!s){s=document.createElement('style');s.id='apk-fullscreen-style';document.head.appendChild(s);}s.innerHTML='video,.video-box,.live-box,.player-box,.video-wrap,.prism-player,.video-js,[id*=\"player\"],[id*=\"video\"],iframe{position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100vh!important;max-width:100vw!important;max-height:100vh!important;z-index:999999!important;background:#000!important;}video{width:100%!important;height:100%!important;object-fit:contain!important;}';})();" else "(function(){var s=document.getElementById('apk-fullscreen-style');if(s){s.remove();}})();"    
 
-private const val PIN_PLAYER_TOP_JS = "(function(){function pin(){var h=location.hostname||'';if(h.indexOf('cwl.gov.cn')!==-1){document.querySelectorAll('header,nav,.header,.nav,.topbar,.title,.bread,.breadcrumb,.banner').forEach(function(e){e.style.display='none';});var v=document.querySelector('video,.video-box,.live-box,.player,#player,iframe');if(v){(v.closest('.video-box,.live-box,.player,.main,section,div')||v).scrollIntoView({block:'start'});}}else if(h.indexOf('lottery.gov.cn')!==-1){document.querySelectorAll('header,.header,.top-banner,.red-banner,.banner,.title-bar,.nav').forEach(function(e){e.style.display='none';});document.querySelectorAll('div,section').forEach(function(e){var t=(e.innerText||'').trim();if((t.indexOf('相约体彩')!==-1||t.indexOf('开奖直播')!==-1)&&e.offsetHeight>0&&e.offsetHeight<260&&!e.querySelector('video,iframe')){e.style.display='none';}});var v2=document.querySelector('video,iframe,.video-wrap,.live-player,#player');if(v2){(v2.closest('.video-wrap,.live-player,.player,section,div')||v2).scrollIntoView({block:'start'});}}}pin();setTimeout(pin,800);})();"
+private const val PIN_PLAYER_TOP_JS = "(function(){function pin(){var h=location.hostname||'';if(h.indexOf('cwl.gov.cn')!==-1){document.querySelectorAll('header,nav,.header,.nav,.topbar,.title,.bread,.breadcrumb,.banner').forEach(function(e){e.style.display='none';});var v=document.querySelector('video,.video-box,.live-box,.player,#player,iframe');if(v){(v.closest('.video-box,.live-box,.player,.main,section,div')||v).scrollIntoView({block:'start'});}}}pin();setTimeout(pin,800);})();"
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -183,7 +185,6 @@ var loadError by remember { mutableStateOf<String?>(null) }
             .background(Color(0xFF111315))
     ) {
         // 顶部等宽单行切换栏（全屏时自动隐藏）
-        if (!isFullscreen) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -192,6 +193,25 @@ var loadError by remember { mutableStateOf<String?>(null) }
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                Button(
+                    onClick = {
+                        if (isFullscreen) {
+                            webViewRef?.evaluateJavascript(buildFullscreenJs(false), null)
+                            onFullscreenChange(false)
+                        } else if (webViewRef?.canGoBack() == true) {
+                            webViewRef?.goBack()
+                        } else {
+                            onFullscreenChange(false)
+                        }
+                    },
+                    modifier = Modifier.height(44.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2B2F36), contentColor = Color.White),
+                    contentPadding = PaddingValues(horizontal = 12.dp)
+                ) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "返回", modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("返回", fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                }
                 OFFICIAL_SOURCES.forEach { source ->
                     FilterChip(
                         selected = source.id == activeSource.id,
@@ -229,17 +249,16 @@ var loadError by remember { mutableStateOf<String?>(null) }
 FilledTonalIconButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(activeSource.url))) }, modifier = Modifier.size(40.dp), colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = Color(0xFF2B2F36), contentColor = Color.White)) { Icon(Icons.Default.OpenInBrowser, contentDescription = "浏览器打开") }
 
                 FilledTonalIconButton(
-                    onClick = { webViewRef?.evaluateJavascript(buildFullscreenJs(true), null); onFullscreenChange(true) },
+                        onClick = { val next = !isFullscreen; webViewRef?.evaluateJavascript(buildFullscreenJs(next), null); onFullscreenChange(next) },
                     modifier = Modifier.size(40.dp),
                     colors = IconButtonDefaults.filledTonalIconButtonColors(
                         containerColor = Color(0xFF2B2F36),
                         contentColor = Color.White
                     )
                 ) {
-                    Icon(Icons.Default.Fullscreen, contentDescription = "全屏播放")
+                        Icon(if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen, contentDescription = if (isFullscreen) "退出全屏" else "全屏播放")
                 }
             }
-        }
         if (!isFullscreen && activeSource.id == "tc_live") {
             var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
             LaunchedEffect(Unit) {
@@ -335,7 +354,7 @@ val url = request?.url?.toString() ?: return false; val lowerUrl = url.lowercase
 
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 super.onPageFinished(view, url)
-                                view?.evaluateJavascript("(function(){['apk-purify-style','apk-tc-style'].forEach(function(id){var el=document.getElementById(id);if(el)el.remove();});})();", null); if (url?.contains("cwl.gov.cn", ignoreCase = true) == true) { view?.evaluateJavascript(PURIFY_PAGE_JS, null) } else if (url?.contains("lottery.gov.cn", ignoreCase = true) == true) { view?.evaluateJavascript(TC_CLEAN_JS, null) }; if (url?.contains("cwl.gov.cn", ignoreCase = true) == true || url?.contains("lottery.gov.cn", ignoreCase = true) == true) { view?.evaluateJavascript(PIN_PLAYER_TOP_JS, null) }
+                                view?.evaluateJavascript("(function(){['apk-purify-style','apk-tc-style'].forEach(function(id){var el=document.getElementById(id);if(el)el.remove();});})();", null); if (url?.contains("cwl.gov.cn", ignoreCase = true) == true) { view?.evaluateJavascript(PURIFY_PAGE_JS, null) } else if (url?.contains("lottery.gov.cn", ignoreCase = true) == true) { view?.evaluateJavascript("(function(){try{document.querySelectorAll('video').forEach(function(v){v.setAttribute('controls','');v.setAttribute('playsinline','');v.setAttribute('webkit-playsinline','');});}catch(e){}})();", null) }; if (url?.contains("cwl.gov.cn", ignoreCase = true) == true) { view?.evaluateJavascript(PIN_PLAYER_TOP_JS, null) }
                             } override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) { super.onReceivedError(view, request, error); if (request?.isForMainFrame == true) { loadError = "页面加载失败 (错误码: ${error?.errorCode ?: -1}, ${error?.description ?: "未知错误"})" } }
                             override fun onReceivedHttpError(view: WebView?, request: WebResourceRequest?, errorResponse: WebResourceResponse?) { super.onReceivedHttpError(view, request, errorResponse); if (request?.isForMainFrame == true) { loadError = "HTTP 请求失败 (状态码: ${errorResponse?.statusCode ?: -1})" } }
                             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) { super.onPageStarted(view, url, favicon); loadError = null }
@@ -379,16 +398,6 @@ val url = request?.url?.toString() ?: return false; val lowerUrl = url.lowercase
                 modifier = Modifier.fillMaxSize()
             )
         if (loadError != null) { Box(modifier = Modifier.fillMaxSize().background(Color(0xFF14161A)).padding(24.dp), contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) { Text(text = loadError ?: "", color = Color.White, style = MaterialTheme.typography.bodyLarge); Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { Button(onClick = { loadError = null; webViewRef?.reload() }) { Text("重新加载") }; Button(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(activeSource.url))) }) { Text("用系统浏览器打开") } } } } }
-            // 全屏模式下右上角保留退出全屏悬浮按钮
-            if (isFullscreen) {
-                Row(modifier = Modifier.align(Alignment.TopCenter).padding(12.dp).background(Color.Black.copy(alpha = 0.65f), RoundedCornerShape(24.dp)).padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Surface(onClick = { if (customVideoView != null) exitVideoCustomView(); webViewRef?.evaluateJavascript(buildFullscreenJs(false), null); onFullscreenChange(false) }, shape = RoundedCornerShape(24.dp), color = Color.White.copy(alpha = 0.2f), modifier = Modifier.height(48.dp)) { Row(modifier = Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) { Icon(Icons.Filled.ArrowBack, contentDescription = "返回", tint = Color.White, modifier = Modifier.size(28.dp)); Text(text = "返回", color = Color.White, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) } }; Spacer(modifier = Modifier.width(16.dp))
-                    OFFICIAL_SOURCES.forEach { source -> val isSelected = source.id == activeSource.id; val shortLabel = if (source.id == "fc_live") "福彩" else "体彩"; Surface(onClick = { activeSource = source }, shape = RoundedCornerShape(16.dp), color = if (isSelected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.15f)) { Text(text = shortLabel, color = Color.White, style = MaterialTheme.typography.labelMedium, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) } }
-                    IconButton(onClick = { webViewRef?.reload() }, modifier = Modifier.size(36.dp)) { Icon(Icons.Filled.Refresh, contentDescription = "刷新", tint = Color.White, modifier = Modifier.size(20.dp)) }
-                    
-            IconButton(onClick = { if (customVideoView != null) exitVideoCustomView(); webViewRef?.evaluateJavascript(buildFullscreenJs(false), null); onFullscreenChange(false) }, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.FullscreenExit, contentDescription = "退出全屏", tint = Color.White, modifier = Modifier.size(20.dp)) }
-            }
-        }
     }
 }
 }
