@@ -27,7 +27,7 @@ object AppUpdater {
         try {
             val request = Request.Builder()
                 .url(LATEST_RELEASE_URL)
-                .header("Accept", "application/vnd.github+json")
+                .header("Accept", "application/vnd.github+json").header("Cache-Control", "no-cache, no-store")
                 .build()
 
             client.newCall(request).execute().use { response ->
@@ -94,10 +94,8 @@ object AppUpdater {
                 val body = response.body ?: return@withContext false
 
                 val cacheDir = context.externalCacheDir ?: context.cacheDir
-                val apkFile = File(cacheDir, "update.apk")
-                if (apkFile.exists()) {
-                    apkFile.delete()
-                }
+               cacheDir.listFiles { file -> file.name.startsWith("update") && file.name.endsWith(".apk") }?.forEach { it.delete() }
+               val apkFile = File(cacheDir, "update_${System.currentTimeMillis()}.apk")
 
                 val totalBytes = body.contentLength()
                 var downloadedBytes = 0L
