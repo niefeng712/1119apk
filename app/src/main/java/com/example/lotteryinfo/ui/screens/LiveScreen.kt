@@ -59,18 +59,7 @@ private val OFFICIAL_SOURCES = listOf(
 )
 
 private const val CWL_PURIFY_JS = """
-    (function() {
-        var hideTabs = ['开奖公告', '往期开奖公告', '往期开奖视频', '开奖流程', '走进开奖现场', '开奖信息发布渠道'];
-        var els = document.querySelectorAll('a, li, span, div');
-        for (var i = 0; i < els.length; i++) {
-            var el = els[i];
-            if (el.querySelector('video, iframe')) continue;
-            var txt = (el.innerText || el.textContent || '').trim();
-            if (hideTabs.indexOf(txt) !== -1 && el.children.length <= 2) {
-                el.style.display = 'none';
-            }
-        }
-    })();
+    (function() { function purifyCwl() { var styleId = 'cwl-purify-style'; if (!document.getElementById(styleId)) { var style = document.createElement('style'); style.id = styleId; style.textContent = 'html, body { margin-top: 0 !important; padding-top: 0 !important; } body { padding-top: 56px !important; box-sizing: border-box !important; } @media (min-width: 601px) { body { max-width: 820px !important; margin: 0 auto !important; } }'; (document.head || document.documentElement).appendChild(style); } var hideTabs = ['开奖公告', '往期开奖公告', '往期开奖视频', '开奖流程', '走进开奖现场', '开奖信息发布渠道']; var allEls = document.querySelectorAll('header, nav, footer, section, form, ul, li, a, span, button, div'); for (var i = 0; i < allEls.length; i++) { var el = allEls[i]; if (el === document.body || el === document.documentElement) continue; if (el.querySelector('video, iframe')) continue; var txt = (el.innerText || el.textContent || '').trim(); if (hideTabs.indexOf(txt) !== -1 && el.children.length <= 2) { el.style.display = 'none'; continue; } if (txt.indexOf('开奖直播') === -1) { if ((txt.indexOf('客服热线') !== -1 || txt.indexOf('954168') !== -1 || txt.indexOf('中国福利彩票官方网站') !== -1) && txt.length < 300) { el.style.display = 'none'; continue; } var hasSearchBtn = (txt.indexOf('搜索') !== -1) || !!el.querySelector('input[value*="搜索"], button, [type="submit"], [type="button"]'); if (el.querySelector('input') && hasSearchBtn && txt.length < 150) { el.style.display = 'none'; continue; } if (txt.indexOf('阳光开奖') !== -1 && (txt.indexOf('福彩游戏') !== -1 || txt.indexOf('资料库') !== -1) && txt.length < 300) { el.style.display = 'none'; continue; } if (txt.indexOf('首页') !== -1 && txt.indexOf('游戏') !== -1 && txt.indexOf('公益') !== -1 && txt.indexOf('开奖') !== -1 && txt.length < 120) { el.style.display = 'none'; continue; } } try { var cs = window.getComputedStyle(el); if (cs && cs.position === 'fixed') { var rect = el.getBoundingClientRect(); if (rect.height > 0 && rect.bottom >= window.innerHeight - 20 && rect.top >= window.innerHeight * 0.5) { el.style.display = 'none'; } } } catch (e) {} } } purifyCwl(); setTimeout(purifyCwl, 600); setTimeout(purifyCwl, 1800); })();
 """
 
 private const val LOTTERY_PURIFY_JS = """
@@ -102,7 +91,7 @@ private const val LOTTERY_PURIFY_JS = """
             videos[k].setAttribute('playsinline', 'true');
             videos[k].setAttribute('webkit-playsinline', 'true');
         }
-    })();
+        if (window.innerWidth > 600) { var lStyleId = 'lottery-purify-style'; if (!document.getElementById(lStyleId)) { var lStyle = document.createElement('style'); lStyle.id = lStyleId; lStyle.textContent = 'html { max-width: 560px !important; margin: 0 auto !important; font-size: 48px !important; } body, #app, #app > div, body > div { max-width: 560px !important; margin-left: auto !important; margin-right: auto !important; } body { padding-top: 52px !important; zoom: 0.75 !important; }'; (document.head || document.documentElement).appendChild(lStyle); } if (document.body) { document.body.style.paddingTop = '52px'; } } })();
 """
 
 @SuppressLint("SetJavaScriptEnabled")
