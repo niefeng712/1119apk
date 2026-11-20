@@ -26,7 +26,11 @@ object LotteryRepository {
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
-
+    private val fastLatestMap = mutableMapOf<LotteryType, LotteryDraw>()
+    fun updateFastLatest(draw: LotteryDraw) {
+        synchronized(fastLatestMap) { val cur = fastLatestMap[draw.type]?.issue?.toLongOrNull() ?: 0L; if ((draw.issue.toLongOrNull() ?: 0L) > cur) fastLatestMap[draw.type] = draw }
+    }
+    
     fun getLiveChannels(): List<LiveChannel> = listOf(
         LiveChannel(
             id = "fc_official",
@@ -64,7 +68,7 @@ object LotteryRepository {
         pageSize: Int = 100
     ): FetchResult = withContext(Dispatchers.IO) {
         try {
-            val remote = when {
+            val remoteRaw = when {
 type == LotteryType.FC3D && pageNo == 1 && type.cwlName != null -> coroutineScope {
                 val cwlDeferred = async { fetchFromCwl(type, type.cwlName, pageNo, pageSize) }
                 val sinaDeferred = async { fetchFc3dFastFromSina() }
@@ -80,6 +84,7 @@ type == LotteryType.FC3D && pageNo == 1 && type.cwlName != null -> coroutineScop
                 type.sportteryGameNo != null -> fetchFromSporttery(type, type.sportteryGameNo, pageNo, pageSize)
                 else -> emptyList()
             }
+            val fastDraw = if (pageNo == 1) synchronized(fastLatestMap) { fastLatestMap[type] } else null; val remote = if (fastDraw != null && (remoteRaw.isEmpty() || (fastDraw.issue.toLongOrNull() ?: 0L) > (remoteRaw.first().issue.toLongOrNull() ?: 0L))) listOf(fastDraw) + remoteRaw.filterNot { it.issue == fastDraw.issue } else remoteRaw
             if (remote.isNotEmpty()) {
                 FetchResult(remote, isFromNetwork = true, statusMessage = "已同步官方公开接口（${remote.size}期）")
             } else {
