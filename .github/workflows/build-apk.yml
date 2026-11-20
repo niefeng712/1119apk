@@ -20,6 +20,52 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - name: Compute Version & Patch Gradle
+        run: |
+          OFFSET=$(( GITHUB_RUN_NUMBER - 49 ))
+          if [ $OFFSET -lt 0 ]; then OFFSET=0; fi
+          MINOR=$(( 1 + OFFSET / 10 ))
+          PATCH=$(( OFFSET % 10 ))
+          APP_VER="1.${MINOR}.${PATCH}"
+          echo "APP_VER=${APP_VER}" >> $GITHUB_ENV
+          echo "APP_CODE=${GITHUB_RUN_NUMBER}" >> $GITHUB_ENV
+          sed -i "s/versionCode = .*/versionCode = ${GITHUB_RUN_NUMBER}/" app/build.gradle.kts
+          sed -i "s/versionName = \".*\"/versionName = \"${APP_VER}\"/" app/build.gradle.kts
+      - name: Build Debug APK
+        run: gradle assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+      - name: Clean Old Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release list --limit 100 --json tagName -q '.[].tagName' | while read -r tag; do
+            if [ "$tag" != "v1.2.43" ] && [ "$tag" != "v${APP_VER}" ]; then
+              gh release delete "$tag" --cleanup-tag -y || true
+            fi
+          done
+      - name: Publish to Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.APP_VER }}
+          name: 福彩体彩助手 v${{ env.APP_VER }}
+          files: app/build/outputs/apk/debug/app-debug.apk
+          make_latest: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
       - name: Build Debug APK
         run: gradle assembleDebug
       - uses: actions/upload-artifact@v4
