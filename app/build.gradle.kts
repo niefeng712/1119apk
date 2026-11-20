@@ -15,6 +15,14 @@ android {
         versionCode = 4
         versionName = "1.4.0"
     }
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("fixed-debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
 
     buildTypes {
         release {
@@ -26,7 +34,8 @@ android {
         }
         debug {
             isMinifyEnabled = false
-        }
+                  signingConfig = signingConfigs.getByName("debug")
+}
     }
 
     compileOptions {
