@@ -46,6 +46,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import com.example.lotteryinfo.ui.layout.ScreenSizeClass
+import com.example.lotteryinfo.model.LotteryOrg; import kotlinx.coroutines.delay; import java.util.Calendar; import java.util.TimeZone
 
 private data class OfficialLiveSource(
     val id: String,
@@ -59,7 +60,7 @@ private val OFFICIAL_SOURCES = listOf(
 )
 
 private const val CWL_PURIFY_JS = """
-        (function() { function purifyCwl() { var styleId = 'cwl-purify-style'; if (!document.getElementById(styleId)) { var style = document.createElement('style'); style.id = styleId; style.textContent = 'html, body { margin-top: 0 !important; padding-top: 0 !important; } body { padding-top: 64px !important; box-sizing: border-box !important; }'; (document.head || document.documentElement).appendChild(style); } var hideTabs = ['开奖公告', '往期开奖公告', '往期开奖视频', '开奖流程', '走进开奖现场', '开奖信息发布渠道']; var allEls = document.querySelectorAll('header, nav, footer, section, form, ul, li, a, span, button, div'); for (var i = 0; i < allEls.length; i++) { var el = allEls[i]; if (el === document.body || el === document.documentElement) continue; if (el.querySelector('video, iframe')) continue; var txt = (el.innerText || el.textContent || '').trim(); if (hideTabs.indexOf(txt) !== -1 && el.children.length <= 2) { el.style.display = 'none'; continue; } if (txt === '开奖直播' && el.children.length <= 3) { el.style.display = 'none'; continue; } if ((txt.indexOf('推荐使用最新版') !== -1 || txt.indexOf('360浏览器') !== -1 || txt.indexOf('鸿蒙用户') !== -1) && txt.length < 500) { el.style.display = 'none'; continue; } if (txt.indexOf('开奖直播') === -1) { if ((txt.indexOf('客服热线') !== -1 || txt.indexOf('954168') !== -1 || txt.indexOf('中国福利彩票官方网站') !== -1) && txt.length < 300) { el.style.display = 'none'; continue; } var hasSearchBtn = (txt.indexOf('搜索') !== -1) || !!el.querySelector('input[value*="搜索"], button, [type="submit"], [type="button"]'); if (el.querySelector('input') && hasSearchBtn && txt.length < 150) { el.style.display = 'none'; continue; } if (txt.indexOf('阳光开奖') !== -1 && (txt.indexOf('福彩游戏') !== -1 || txt.indexOf('资料库') !== -1) && txt.length < 300) { el.style.display = 'none'; continue; } if (txt.indexOf('首页') !== -1 && txt.indexOf('游戏') !== -1 && txt.indexOf('公益') !== -1 && txt.indexOf('开奖') !== -1 && txt.length < 120) { el.style.display = 'none'; continue; } } try { var rect = el.getBoundingClientRect(); if (txt === '' && !el.querySelector('img, svg, video, iframe, canvas, input') && rect.top >= 0 && rect.top < 260 && rect.height > 0 && rect.height < 120 && rect.width >= window.innerWidth * 0.7) { el.style.display = 'none'; continue; } var cs = window.getComputedStyle(el); if (cs && cs.position === 'fixed') { if (rect.height > 0 && rect.bottom >= window.innerHeight - 20 && rect.top >= window.innerHeight * 0.5) { el.style.display = 'none'; } } } catch (e) {} } } purifyCwl(); setTimeout(purifyCwl, 600); setTimeout(purifyCwl, 1800); })();
+        (function() { function purifyCwl() { var styleId = 'cwl-purify-style'; if (!document.getElementById(styleId)) { var style = document.createElement('style'); style.id = styleId; style.textContent = 'html, body { width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important; margin-top: 0 !important; padding-top: 0 !important; } body { padding-top: 64px !important; box-sizing: border-box !important; }'; (document.head || document.documentElement).appendChild(style); } var hideTabs = ['开奖公告', '往期开奖公告', '往期开奖视频', '开奖流程', '走进开奖现场', '开奖信息发布渠道']; var allEls = document.querySelectorAll('header, nav, footer, section, form, ul, li,p,  a, span, button, div'); for (var i = 0; i < allEls.length; i++) { var el = allEls[i]; if (el === document.body || el === document.documentElement) continue; if (el.querySelector('video, iframe')) continue; var txt = (el.innerText || el.textContent || '').trim(); if ((txt.indexOf('双色球：') !== -1 || txt.indexOf('快乐8：') !== -1 || txt.indexOf('七乐彩：') !== -1 || txt.indexOf('福彩3D：') !== -1) && txt.length < 500) { el.style.display = 'none'; continue; } if (hideTabs.indexOf(txt) !== -1 && el.children.length <= 2) { el.style.display = 'none'; continue; } if (txt === '开奖直播' && el.children.length <= 3) { el.style.display = 'none'; continue; } if ((txt.indexOf('推荐使用最新版') !== -1 || txt.indexOf('360浏览器') !== -1 || txt.indexOf('鸿蒙用户') !== -1) && txt.length < 500) { el.style.display = 'none'; continue; } if (txt.indexOf('开奖直播') === -1) { if ((txt.indexOf('客服热线') !== -1 || txt.indexOf('954168') !== -1 || txt.indexOf('中国福利彩票官方网站') !== -1) && txt.length < 300) { el.style.display = 'none'; continue; } var hasSearchBtn = (txt.indexOf('搜索') !== -1) || !!el.querySelector('input[value*="搜索"], button, [type="submit"], [type="button"]'); if (el.querySelector('input') && hasSearchBtn && txt.length < 150) { el.style.display = 'none'; continue; } if (txt.indexOf('阳光开奖') !== -1 && (txt.indexOf('福彩游戏') !== -1 || txt.indexOf('资料库') !== -1) && txt.length < 300) { el.style.display = 'none'; continue; } if (txt.indexOf('首页') !== -1 && txt.indexOf('游戏') !== -1 && txt.indexOf('公益') !== -1 && txt.indexOf('开奖') !== -1 && txt.length < 120) { el.style.display = 'none'; continue; } } try { var rect = el.getBoundingClientRect(); if (txt === '' && !el.querySelector('img, svg, video, iframe, canvas, input') && rect.top >= 0 && rect.top < 260 && rect.height > 0 && rect.height < 120 && rect.width >= window.innerWidth * 0.7) { el.style.display = 'none'; continue; } var cs = window.getComputedStyle(el); if (cs && cs.position === 'fixed') { if (rect.height > 0 && rect.bottom >= window.innerHeight - 20 && rect.top >= window.innerHeight * 0.5) { el.style.display = 'none'; } } } catch (e) {} } } purifyCwl(); setTimeout(purifyCwl, 600); setTimeout(purifyCwl, 1800); })();
 """
 
 private const val LOTTERY_PURIFY_JS = """
@@ -93,8 +94,8 @@ private const val LOTTERY_PURIFY_JS = """
             videos[k].setAttribute('playsinline', 'true');
             videos[k].setAttribute('webkit-playsinline', 'true');
         }
-        if (window.innerWidth > 600) { var lStyleId = 'lottery-purify-style'; if (!document.getElementById(lStyleId)) { var lStyle = document.createElement('style'); lStyle.id = lStyleId; lStyle.textContent = 'body { max-width: 680px !important; margin: 0 auto !important; padding-top: 64px !important; background: #F5F7FA !important; }'; (document.head || document.documentElement).appendChild(lStyle); } if (document.body) { document.body.style.paddingTop = '64px'; } }
-    })();
+            var lStyleId = 'lottery-purify-style'; if (!document.getElementById(lStyleId)) { var lStyle = document.createElement('style'); lStyle.id = lStyleId; lStyle.textContent = 'html, body { width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important; background: #FFFFFF !important; } main, .main, .content, .container, .card, #app > div, body > div { width: 100% !important; max-width: 100% !important; box-sizing: border-box !important; margin: 0 !important; }'; (document.head || document.documentElement).appendChild(lStyle); }
+            })();
 """
 
 @SuppressLint("SetJavaScriptEnabled")
@@ -102,7 +103,8 @@ private const val LOTTERY_PURIFY_JS = """
 fun LiveScreen(
     sizeClass: ScreenSizeClass,
     isFullscreen: Boolean,
-    onFullscreenChange: (Boolean) -> Unit
+    onFullscreenChange: (Boolean) -> Unit,
+    initialOrg: LotteryOrg = LotteryOrg.FC
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -110,6 +112,7 @@ fun LiveScreen(
     var activeSource by remember { mutableStateOf(OFFICIAL_SOURCES.first()) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     var isLoading by remember { mutableStateOf(true) }
+    LaunchedEffect(initialOrg) { val targetId = if (initialOrg == LotteryOrg.TC) "tc_live" else "fc_live"; OFFICIAL_SOURCES.find { it.id == targetId }?.let { activeSource = it } }
     var canGoBack by remember { mutableStateOf(false) }
 
     var customVideoView by remember { mutableStateOf<View?>(null) }
@@ -376,6 +379,11 @@ fun LiveScreen(
                     }
                 }
             }
+        }
+        if (activeSource.id == "tc_live" && customVideoView == null) {
+            var countdownText by remember { mutableStateOf("") }
+            LaunchedEffect(activeSource.id) { val bjTz = TimeZone.getTimeZone("Asia/Shanghai"); while (true) { val now = Calendar.getInstance(bjTz); val nowSec = now.get(Calendar.HOUR_OF_DAY) * 3600 + now.get(Calendar.MINUTE) * 60 + now.get(Calendar.SECOND); val startSec = 21 * 3600 + 20 * 60; val endSec = 21 * 3600 + 40 * 60; countdownText = if (nowSec in startSec..endSec) "正在体彩开奖直播中" else { val diff = if (nowSec < startSec) startSec - nowSec else (24 * 3600 - nowSec) + startSec; val hh = (diff / 3600).toString().padStart(2, '0'); val mm = ((diff % 3600) / 60).toString().padStart(2, '0'); val ss = (diff % 60).toString().padStart(2, '0'); "距离直播还有：$hh:$mm:$ss" }; delay(1000L) } }
+            Surface(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp), shape = RoundedCornerShape(18.dp), color = Color(0xCC111827)) { Text(text = countdownText, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)) }
         }
     }
 }
