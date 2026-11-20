@@ -194,7 +194,7 @@ fun LotteryMainApp() {
                         }
                         } }
                if (!hideChrome && sizeClass == ScreenSizeClass.MEDIUM) {
-                            NavigationRail {
+                            NavigationRail(modifier = Modifier.width(96.dp)) {
                                 tabs.forEachIndexed { index, tab ->
                                     NavigationRailItem(
                                         selected = selectedTab == index,
@@ -203,7 +203,7 @@ fun LotteryMainApp() {
                                             selectedTab = index
                                         },
                                         icon = { Icon(tab.icon, contentDescription = tab.label) },
-                                        label = { Text(tab.label) }
+                                        label = { Text(tab.title, maxLines = 1, softWrap = false) }
                             )
                         }
                         NavigationRailItem(selected = false, onClick = checkUpdateManually, icon = { Icon(Icons.Default.SystemUpdate, contentDescription = "检查更新") }, label = { Text("检查更新", maxLines = 1, softWrap = false) })
