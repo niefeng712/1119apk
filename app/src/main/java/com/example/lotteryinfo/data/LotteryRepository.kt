@@ -169,7 +169,64 @@ object LotteryRepository {
         val msg = if (anyNetwork) "已同步官方最新开奖数据" else "当前显示离线示例数据（请检查网络）"
         FetchResult(draws, isFromNetwork = anyNetwork, statusMessage = msg)
     }
-
+    suspend fun fetchLatestFastRace(): FetchResult = coroutineScope {
+        val results = LotteryType.entries.map { type ->
+            async(Dispatchers.IO) {
+                val netease = async { fetchFastFromNetease(type) }
+                val lecw = async { fetchFastFrom17500(type) }
+                val cached = fastLatestMap[type]
+                val best = listOfNotNull(netease.await(), lecw.await(), cached).maxByOrNull { normalizeIssue(it.issue) }
+                if (best != null) best to true else (getFallbackHistory(type).firstOrNull() ?: LotteryDraw(type, "--", "--", emptyList(), emptyList(), "本地示例", "--", 0, "--", false)) to false
+            }
+        }.awaitAll()
+        val draws = results.map { it.first }
+        val anyNet = results.any { it.second }
+        val t = currentBeijingTime()
+        FetchResult(draws, anyNet, if (anyNet) "已极速同步最新开奖 ($t)" else "快源暂无数据，当前显示本地示例 ($t)")
+    }    private fun fetchFastFrom17500(type: LotteryType): LotteryDraw? {
+        val url = "https://" + "www." + "17500" + ".cn/kj/index.html?_t=${System.currentTimeMillis()}"
+        return try {
+            val req = Request.Builder()
+                .url(url)
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+                .header("Cache-Control", "no-cache, no-store")
+                .header("Pragma", "no-cache")
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return null
+                val html = resp.body?.string() ?: return null
+                val text = html.replace(Regex("<[^>]+>"), " ").replace(Regex("\\s+"), " ")
+                val (keyword, expectedCount) = when (type) {
+                    LotteryType.FC3D -> "福彩3D" to 3
+                    LotteryType.PL3 -> "排列3" to 3
+                    LotteryType.PL5 -> "排列5" to 5
+                }
+                val numPattern = List(expectedCount) { "\\d" }.joinToString("\\s*")
+                val regex = Regex("$keyword.{0,120}?(?<!\\d)(\\d{5,7})(?!\\d)期?.{0,80}?(?<!\\d)($numPattern)(?!\\d)")
+                val match = regex.find(text) ?: return null
+                val rawIssue = match.groupValues[1]
+                val issue = if (rawIssue.length == 5) "20$rawIssue" else rawIssue
+                val balls = match.groupValues[2].filter { it.isDigit() }.map { it - '0' }
+                if (balls.size != expectedCount) return null
+                LotteryDraw(
+                    lotteryType = type,
+                    issue = issue,
+                    drawDate = "",
+                    redBalls = balls,
+                    blueBalls = emptyList(),
+                    poolAmount = "乐彩网极速",
+                    salesAmount = "--",
+                    firstPrizeCount = 0,
+                    firstPrizeAmount = "--",
+                    isLiveData = true
+                )
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+    
+    
     private fun fetchFastFromNetease(type: LotteryType): LotteryDraw? {
         val path = when (type) {
             LotteryType.FC3D -> "fc3d"
