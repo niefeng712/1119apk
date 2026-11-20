@@ -203,7 +203,7 @@ type == LotteryType.FC3D && pageNo == 1 && type.cwlName != null -> coroutineScop
                     issue = issue,
                     drawDate = drawDate,
                     redBalls = balls,
-                    blueBalls = emptyList(),
+                    blueBalls = emptyList(), poolAmount = "--", salesAmount = "--", firstPrizeCount = 0, firstPrizeAmount = "--",
                     isLiveData = true
                 )
             }
