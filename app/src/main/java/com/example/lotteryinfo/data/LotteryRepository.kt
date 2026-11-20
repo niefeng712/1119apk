@@ -28,7 +28,7 @@ object LotteryRepository {
         .build()
     private val fastLatestMap = mutableMapOf<LotteryType, LotteryDraw>()
     fun updateFastLatest(draw: LotteryDraw) {
-        synchronized(fastLatestMap) { val cur = fastLatestMap[draw.type]?.issue?.toLongOrNull() ?: 0L; if ((draw.issue.toLongOrNull() ?: 0L) > cur) fastLatestMap[draw.type] = draw }
+        synchronized(fastLatestMap) { val cur = fastLatestMap[draw.lotteryType]?.issue?.toLongOrNull() ?: 0L; if ((draw.issue.toLongOrNull() ?: 0L) > cur) fastLatestMap[draw.lotteryType] = draw }
     }
     
     fun getLiveChannels(): List<LiveChannel> = listOf(
