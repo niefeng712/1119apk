@@ -43,7 +43,6 @@ import com.example.lotteryinfo.ui.layout.screenSizeClassFromWidth
 import com.example.lotteryinfo.ui.screens.HistoryScreen
 import com.example.lotteryinfo.ui.screens.HomeScreen
 import com.example.lotteryinfo.ui.screens.LiveScreen
-import com.example.lotteryinfo.ui.screens.TrendChartScreen
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -80,8 +79,7 @@ private data class NavTab(val label: String, val title: String, val icon: ImageV
 @Composable
 fun LotteryMainApp() {
     var selectedTab by remember { mutableIntStateOf(0) }
-    var trendLotteryType by remember { mutableStateOf(LotteryType.SSQ) }
-    var historyLotteryType by remember { mutableStateOf(LotteryType.SSQ) }
+    var historyLotteryType by remember { mutableStateOf(LotteryType.FC3D) }
     var isLiveFullscreen by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("lottery_prefs", Context.MODE_PRIVATE) }
@@ -97,7 +95,6 @@ fun LotteryMainApp() {
     val tabs = listOf(
         NavTab("大厅", "开奖大厅", Icons.Default.Home),
         NavTab("直播", "开奖直播", Icons.Default.LiveTv),
-        NavTab("走势图", "号码走势图", Icons.Default.ShowChart),
         NavTab("历史", "历史开奖", Icons.Default.History)
     )
     CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = fontScale)) {
@@ -113,10 +110,6 @@ fun LotteryMainApp() {
                         sizeClass = sizeClass,
                         onOpenHistory = { type ->
                             historyLotteryType = type
-                            selectedTab = 3
-                        },
-                        onOpenTrend = { type ->
-                            trendLotteryType = type
                             selectedTab = 2
                         },
                         onOpenLive = { selectedTab = 1 }
@@ -126,13 +119,12 @@ fun LotteryMainApp() {
                         isFullscreen = isLiveFullscreen,
                         onFullscreenChange = { isLiveFullscreen = it }
                     )
-                    2 -> TrendChartScreen(sizeClass = sizeClass, initialType = trendLotteryType)
-                    3 -> HistoryScreen(sizeClass = sizeClass, initialType = historyLotteryType)
+                    2 -> HistoryScreen(sizeClass = sizeClass, initialType = historyLotteryType)
                 }
             }
         }
 
-        Scaffold(topBar = { if (!hideChrome && selectedTab != 1 && selectedTab != 2) { TopAppBar(title = { Text(tabs[selectedTab].title) }, actions = { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(end = 8.dp)) { FilledTonalButton(onClick = { updateFontScale(-0.15f) }, enabled = fontScale > 0.86f, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 36.dp)) { Text("字-", fontWeight = FontWeight.Bold) }; FilledTonalButton(onClick = { updateFontScale(0.15f) }, enabled = fontScale < 1.64f, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 36.dp)) { Text("字+", fontWeight = FontWeight.Bold) } } }) } }, bottomBar = { if (!hideChrome && sizeClass == ScreenSizeClass.COMPACT) { NavigationBar { tabs.forEachIndexed { index, tab -> NavigationBarItem(selected = selectedTab == index, onClick = { isLiveFullscreen = false; selectedTab = index }, icon = { Icon(tab.icon, contentDescription = tab.label) }, label = { Text(tab.label) }) } } } }) { innerPadding -> Row(modifier = (if (hideChrome) Modifier else Modifier.padding(innerPadding)).fillMaxSize()) { Box { if (!hideChrome && sizeClass == ScreenSizeClass.EXPANDED) {
+        Scaffold(topBar = { if (!hideChrome && selectedTab != 1) { TopAppBar(title = { Text(tabs[selectedTab].title) }, actions = { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(end = 8.dp)) { FilledTonalButton(onClick = { updateFontScale(-0.15f) }, enabled = fontScale > 0.86f, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 36.dp)) { Text("字-", fontWeight = FontWeight.Bold) }; FilledTonalButton(onClick = { updateFontScale(0.15f) }, enabled = fontScale < 1.64f, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 36.dp)) { Text("字+", fontWeight = FontWeight.Bold) } } }) } }, bottomBar = { if (!hideChrome && sizeClass == ScreenSizeClass.COMPACT) { NavigationBar { tabs.forEachIndexed { index, tab -> NavigationBarItem(selected = selectedTab == index, onClick = { isLiveFullscreen = false; selectedTab = index }, icon = { Icon(tab.icon, contentDescription = tab.label) }, label = { Text(tab.label) }) } } } }) { innerPadding -> Row(modifier = (if (hideChrome) Modifier else Modifier.padding(innerPadding)).fillMaxSize()) { Box { if (!hideChrome && sizeClass == ScreenSizeClass.EXPANDED) {
                         PermanentDrawerSheet(modifier = Modifier.width(210.dp)) {
                             Text(
                                 text = "福彩体彩助手",
