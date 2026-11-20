@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.ShowChart
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -95,10 +96,10 @@ fun LotteryMainApp() {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("lottery_prefs", Context.MODE_PRIVATE) }
     var fontScale by remember {
-        mutableFloatStateOf(prefs.getFloat("font_scale", 1.0f).coerceIn(0.85f, 1.65f))
+        mutableFloatStateOf(prefs.getFloat("font_scale", 1.12f).coerceIn(0.95f, 1.30f))
     }
     val updateFontScale: (Float) -> Unit = { delta ->
-        val next = (round((fontScale + delta) * 100f) / 100f).coerceIn(0.85f, 1.65f)
+        val next = (round((fontScale + delta) * 100f) / 100f).coerceIn(0.95f, 1.30f)
         fontScale = next
         prefs.edit().putFloat("font_scale", next).apply()
     }
@@ -141,10 +142,10 @@ fun LotteryMainApp() {
             }
         }
 
-        Scaffold(topBar = { if (!hideChrome && selectedTab != 1) { TopAppBar(title = { Text(tabs[selectedTab].title) }, actions = { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(end = 8.dp)) { FilledTonalButton(onClick = { updateFontScale(-0.15f) }, enabled = fontScale > 0.86f, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 36.dp)) { Text("字-", fontWeight = FontWeight.Bold) }; FilledTonalButton(onClick = { updateFontScale(0.15f) }, enabled = fontScale < 1.64f, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 36.dp)) { Text("字+", fontWeight = FontWeight.Bold); FilledTonalButton(onClick = checkUpdateManually, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 36.dp)) { Text("更新", fontWeight = FontWeight.Bold) } } } }) } }, bottomBar = { if (!hideChrome && sizeClass == ScreenSizeClass.COMPACT) { NavigationBar { tabs.forEachIndexed { index, tab -> NavigationBarItem(selected = selectedTab == index, onClick = { isLiveFullscreen = false; selectedTab = index }, icon = { Icon(tab.icon, contentDescription = tab.label) }, label = { Text(tab.label) }) } } } }) { innerPadding -> Row(modifier = (if (hideChrome) Modifier else Modifier.padding(innerPadding)).fillMaxSize()) { Box { if (!hideChrome && sizeClass == ScreenSizeClass.EXPANDED) {
-                        PermanentDrawerSheet(modifier = Modifier.width(210.dp)) {
+        Scaffold(topBar = { if (!hideChrome && selectedTab != 1) { TopAppBar(title = { Text(tabs[selectedTab].title) }, actions = { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(end = 8.dp)) { FilledTonalButton(onClick = { updateFontScale(-0.07f) }, enabled = fontScale > 0.96f, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 36.dp)) { Text("字-", fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false) }; FilledTonalButton(onClick = { updateFontScale(0.07f) }, enabled = fontScale < 1.29f, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 36.dp)) { Text("字+", fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false) } } }) } }, bottomBar = { if (!hideChrome && sizeClass == ScreenSizeClass.COMPACT) { NavigationBar { tabs.forEachIndexed { index, tab -> NavigationBarItem(selected = selectedTab == index, onClick = { isLiveFullscreen = false; selectedTab = index }, icon = { Icon(tab.icon, contentDescription = tab.label) }, label = { Text(tab.label) }) } } } }) { innerPadding -> Row(modifier = (if (hideChrome) Modifier else Modifier.padding(innerPadding)).fillMaxSize()) { Box { if (!hideChrome && sizeClass == ScreenSizeClass.EXPANDED) {
+                        PermanentDrawerSheet(modifier = Modifier.width(232.dp)) {
                             Text(
-                                text = "福彩体彩助手",
+                                text = "福彩体彩助手", maxLines = 1, softWrap = false,
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.ExtraBold,
                                 modifier = Modifier.padding(20.dp)
@@ -161,7 +162,8 @@ fun LotteryMainApp() {
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                                 )
                             }
-                        Spacer(modifier = Modifier.weight(1f))
+                        NavigationDrawerItem(selected = false, onClick = checkUpdateManually, icon = { Icon(Icons.Default.SystemUpdate, contentDescription = "检查更新") }, label = { Text("检查更新", maxLines = 1, softWrap = false) }, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+                    Spacer(modifier = Modifier.weight(1f))
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                         Row(
                             modifier = Modifier
@@ -171,22 +173,21 @@ fun LotteryMainApp() {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             FilledTonalButton(
-                                onClick = { updateFontScale(-0.15f) },
-                                enabled = fontScale > 0.86f,
+                                onClick = { updateFontScale(-0.07f) },
+                                enabled = fontScale > 0.96f,
                                 modifier = Modifier.weight(1f),
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
                             ) {
-                                Text("字-", fontWeight = FontWeight.Bold)
+                                Text("字-", fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                             }
                             FilledTonalButton(
-                                onClick = { updateFontScale(0.15f) },
-                                enabled = fontScale < 1.64f,
+                                onClick = { updateFontScale(0.07f) },
+                                enabled = fontScale < 1.29f,
                                 modifier = Modifier.weight(1f),
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
                             ) {
-                                Text("字+", fontWeight = FontWeight.Bold)
+                                Text("字+", fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                             }
-                    FilledTonalButton(onClick = checkUpdateManually, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)) { Text("更新", fontWeight = FontWeight.Bold) }
                         }
                         } }
                if (!hideChrome && sizeClass == ScreenSizeClass.MEDIUM) {
@@ -200,8 +201,9 @@ fun LotteryMainApp() {
                                         },
                                         icon = { Icon(tab.icon, contentDescription = tab.label) },
                                         label = { Text(tab.label) }
-                                    )
-                                }
+                            )
+                        }
+                        NavigationRailItem(selected = false, onClick = checkUpdateManually, icon = { Icon(Icons.Default.SystemUpdate, contentDescription = "检查更新") }, label = { Text("检查更新", maxLines = 1, softWrap = false) })
                             }
                         } }
                         mainContent(Modifier.weight(1f))
