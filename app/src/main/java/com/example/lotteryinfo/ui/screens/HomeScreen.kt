@@ -54,7 +54,7 @@ import kotlinx.coroutines.delay
 fun HomeScreen(
     sizeClass: ScreenSizeClass,
     onOpenHistory: (LotteryType) -> Unit,
-    onOpenLive: () -> Unit
+    onOpenLive: (LotteryOrg) -> Unit
 ) {
     var selectedOrg by remember { mutableStateOf(LotteryOrg.ALL) }
     var draws by remember { mutableStateOf<List<LotteryDraw>>(emptyList()) }
@@ -138,7 +138,7 @@ fun HomeScreen(
                 LatestDrawCard(
                     draw = draw,
                     onOpenHistory = { onOpenHistory(draw.lotteryType) },
-                    onOpenLive = onOpenLive
+                    onOpenLive ={  onOpenLive(draw.lotteryType.org) }
                 )
             }
         }
