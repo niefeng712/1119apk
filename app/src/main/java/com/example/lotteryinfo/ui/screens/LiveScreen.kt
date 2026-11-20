@@ -103,7 +103,7 @@ private val CWL_PURIFY_JS = """
     }
 
     var player = findPlayer();
-    if (!player) return;
+    if (player != null && player.getBoundingClientRect().height > 80) {
 
     var cur = player;
     while (cur && cur !== document.body && cur.parentElement) {
@@ -122,11 +122,12 @@ private val CWL_PURIFY_JS = """
       }
       cur = parent;
     }
-
+    }
+    
     var fixedEls = document.querySelectorAll('*');
     for (var j = 0; j < fixedEls.length; j++) {
       var fel = fixedEls[j];
-      if (fel === player || player.contains(fel) || fel.contains(player)) continue;
+      if (player && (fel === player || player.contains(fel) || fel.contains(player))) continue;
       var st = window.getComputedStyle(fel);
       if (st.position === 'fixed' || st.position === 'sticky') {
         fel.style.setProperty('display', 'none', 'important');
