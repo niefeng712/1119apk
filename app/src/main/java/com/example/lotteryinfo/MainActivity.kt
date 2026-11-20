@@ -58,6 +58,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import kotlin.math.round
+import android.widget.Toast
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import com.example.lotteryinfo.update.AppUpdater
+import com.example.lotteryinfo.update.UpdateInfo
+import kotlinx.coroutines.launch
 
 import com.example.lotteryinfo.ui.theme.LotteryInfoTheme
 
@@ -91,7 +99,13 @@ fun LotteryMainApp() {
         fontScale = next
         prefs.edit().putFloat("font_scale", next).apply()
     }
-
+    val coroutineScope = rememberCoroutineScope()
+    var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
+    var isDownloading by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) { updateInfo = AppUpdater.checkUpdate(context) }
+    val checkUpdateManually: () -> Unit = { coroutineScope.launch { val info = AppUpdater.checkUpdate(context); if (info != null) { updateInfo = info } else { Toast.makeText(context, "当前已是最新版本", Toast.LENGTH_SHORT).show() } } }
+    
     val tabs = listOf(
         NavTab("大厅", "开奖大厅", Icons.Default.Home),
         NavTab("直播", "开奖直播", Icons.Default.LiveTv),
@@ -124,7 +138,7 @@ fun LotteryMainApp() {
             }
         }
 
-        Scaffold(topBar = { if (!hideChrome && selectedTab != 1) { TopAppBar(title = { Text(tabs[selectedTab].title) }, actions = { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(end = 8.dp)) { FilledTonalButton(onClick = { updateFontScale(-0.15f) }, enabled = fontScale > 0.86f, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 36.dp)) { Text("字-", fontWeight = FontWeight.Bold) }; FilledTonalButton(onClick = { updateFontScale(0.15f) }, enabled = fontScale < 1.64f, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 36.dp)) { Text("字+", fontWeight = FontWeight.Bold) } } }) } }, bottomBar = { if (!hideChrome && sizeClass == ScreenSizeClass.COMPACT) { NavigationBar { tabs.forEachIndexed { index, tab -> NavigationBarItem(selected = selectedTab == index, onClick = { isLiveFullscreen = false; selectedTab = index }, icon = { Icon(tab.icon, contentDescription = tab.label) }, label = { Text(tab.label) }) } } } }) { innerPadding -> Row(modifier = (if (hideChrome) Modifier else Modifier.padding(innerPadding)).fillMaxSize()) { Box { if (!hideChrome && sizeClass == ScreenSizeClass.EXPANDED) {
+        Scaffold(topBar = { if (!hideChrome && selectedTab != 1) { TopAppBar(title = { Text(tabs[selectedTab].title) }, actions = { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(end = 8.dp)) { FilledTonalButton(onClick = { updateFontScale(-0.15f) }, enabled = fontScale > 0.86f, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 36.dp)) { Text("字-", fontWeight = FontWeight.Bold) }; FilledTonalButton(onClick = { updateFontScale(0.15f) }, enabled = fontScale < 1.64f, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 36.dp)) { Text("字+", fontWeight = FontWeight.Bold); FilledTonalButton(onClick = checkUpdateManually, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), modifier = Modifier.defaultMinSize(minWidth = 44.dp, minHeight = 36.dp)) { Text("更新", fontWeight = FontWeight.Bold) } } } }) } }, bottomBar = { if (!hideChrome && sizeClass == ScreenSizeClass.COMPACT) { NavigationBar { tabs.forEachIndexed { index, tab -> NavigationBarItem(selected = selectedTab == index, onClick = { isLiveFullscreen = false; selectedTab = index }, icon = { Icon(tab.icon, contentDescription = tab.label) }, label = { Text(tab.label) }) } } } }) { innerPadding -> Row(modifier = (if (hideChrome) Modifier else Modifier.padding(innerPadding)).fillMaxSize()) { Box { if (!hideChrome && sizeClass == ScreenSizeClass.EXPANDED) {
                         PermanentDrawerSheet(modifier = Modifier.width(210.dp)) {
                             Text(
                                 text = "福彩体彩助手",
@@ -169,6 +183,7 @@ fun LotteryMainApp() {
                             ) {
                                 Text("字+", fontWeight = FontWeight.Bold)
                             }
+                    FilledTonalButton(onClick = checkUpdateManually, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)) { Text("更新", fontWeight = FontWeight.Bold) }
                         }
                         } }
                if (!hideChrome && sizeClass == ScreenSizeClass.MEDIUM) {
@@ -191,5 +206,59 @@ fun LotteryMainApp() {
         
         }
     }
+    }
+    val currentUpdate = updateInfo
+    if (currentUpdate != null) {
+        AlertDialog(
+            onDismissRequest = { if (!isDownloading) updateInfo = null },
+            title = { Text("发现新版本 v${currentUpdate.latestVersion}") },
+            text = {
+                Column {
+                    if (currentUpdate.releaseNotes.isNotBlank()) {
+                        Text(currentUpdate.releaseNotes)
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                    if (isDownloading) {
+                        Text("正在下载更新: $downloadProgress%")
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LinearProgressIndicator(
+                            progress = { downloadProgress / 100f },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !isDownloading,
+                    onClick = {
+                        isDownloading = true
+                        downloadProgress = 0
+                        coroutineScope.launch {
+                            val success = AppUpdater.downloadAndInstallApk(
+                                context = context,
+                                downloadUrl = currentUpdate.downloadUrl,
+                                onProgress = { progress -> downloadProgress = progress }
+                            )
+                            isDownloading = false
+                            if (success) {
+                                updateInfo = null
+                            } else {
+                                Toast.makeText(context, "下载失败，请稍后重试", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                ) {
+                    Text(if (isDownloading) "下载中..." else "立即更新")
+                }
+            },
+            dismissButton = {
+                if (!isDownloading) {
+                    TextButton(onClick = { updateInfo = null }) {
+                        Text("稍后再说")
+                    }
+                }
+            }
+        )
     }
 }
