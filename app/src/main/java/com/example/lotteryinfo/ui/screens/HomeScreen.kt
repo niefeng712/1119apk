@@ -45,13 +45,15 @@ import com.example.lotteryinfo.model.LotteryType
 import com.example.lotteryinfo.ui.components.LotteryBallRow
 import com.example.lotteryinfo.ui.layout.ScreenSizeClass
 import com.example.lotteryinfo.ui.theme.GoldAccent
+import java.util.Calendar
+import java.util.TimeZone
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(
     sizeClass: ScreenSizeClass,
     onOpenHistory: (LotteryType) -> Unit,
-    onOpenTrend: (LotteryType) -> Unit,
     onOpenLive: () -> Unit
 ) {
     var selectedOrg by remember { mutableStateOf(LotteryOrg.ALL) }
@@ -67,7 +69,18 @@ fun HomeScreen(
         statusText = res.statusMessage
         isLoading = false
     }
-
+    LaunchedEffect(Unit) {
+        while (true) {
+            val cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Shanghai"))
+            val minutes = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+            val intervalMs = if (minutes in (21 * 60 + 10)..(21 * 60 + 50)) 15_000L else 60_000L
+            delay(intervalMs)
+            val res = LotteryRepository.fetchLatestAll()
+            draws = res.draws
+            statusText = res.statusMessage
+        }
+    }
+    
     val filteredDraws = remember(selectedOrg, draws) {
         if (selectedOrg == LotteryOrg.ALL) draws
         else draws.filter { it.lotteryType.org == selectedOrg }
@@ -125,7 +138,6 @@ fun HomeScreen(
                 LatestDrawCard(
                     draw = draw,
                     onOpenHistory = { onOpenHistory(draw.lotteryType) },
-                    onOpenTrend = { onOpenTrend(draw.lotteryType) },
                     onOpenLive = onOpenLive
                 )
             }
@@ -137,7 +149,6 @@ fun HomeScreen(
 private fun LatestDrawCard(
     draw: LotteryDraw,
     onOpenHistory: () -> Unit,
-    onOpenTrend: () -> Unit,
     onOpenLive: () -> Unit
 ) {
     val twoDigits = !draw.lotteryType.isDigitGame
@@ -196,14 +207,7 @@ private fun LatestDrawCard(
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp)
                 ) {
-                    Text("历史", maxLines = 1)
-                }
-                OutlinedButton(
-                    onClick = onOpenTrend,
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp)
-                ) {
-                    Text("走势", maxLines = 1)
+                    Text("历史开奖", maxLines = 1)
                 }
                 OutlinedButton(
                     onClick = onOpenLive,
@@ -211,7 +215,7 @@ private fun LatestDrawCard(
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFC5221F)),
                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp)
                 ) {
-                    Text("直播", maxLines = 1)
+                    Text("看直播", maxLines = 1)
                 }
             }
         }
