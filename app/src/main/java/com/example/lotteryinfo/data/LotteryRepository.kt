@@ -183,7 +183,8 @@ object LotteryRepository {
         val anyNet = results.any { it.second }
         val t = currentBeijingTime()
         FetchResult(draws, anyNet, if (anyNet) "已极速同步最新开奖 ($t)" else "快源暂无数据，当前显示本地示例 ($t)")
-    }    private fun fetchFastFrom17500(type: LotteryType): LotteryDraw? {
+    }   
+    private fun fetchFastFrom17500(type: LotteryType): LotteryDraw? {
         val url = "https://" + "www." + "17500" + ".cn/kj/index.html?_t=${System.currentTimeMillis()}"
         return try {
             val req = Request.Builder()
