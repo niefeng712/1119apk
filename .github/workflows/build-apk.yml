@@ -34,10 +34,12 @@ jobs:
           sed -i "s/versionName = \".*\"/versionName = \"${APP_VER}\"/" app/build.gradle.kts 
           sed -n '10,20p' app/build.gradle.kts
       - name: Restore Fixed Debug Keystore
-        run: mkdir -p ~/.android && base64 -d app/fixed-debug-keystore.b64 > ~/.android/debug.keystore
+        run: base64 -d app/fixed-debug-keystore.b64 > app/fixed-debug.keystore
       - name: Build Debug APK
         run: gradle assembleDebug
-      - uses: actions/upload-artifact@v4
+      - name: Verify APK Signature
+        run: keytool -printcert -jarfile app/build/outputs/apk/debug/app-debug.apk | grep SHA256 || true
+        - uses: actions/upload-artifact@v4
         with:
           name: app-debug
           path: app/build/outputs/apk/debug/app-debug.apk
