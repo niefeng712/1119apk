@@ -77,7 +77,7 @@ private fun currentBeijingDate(): String {
                             blueBalls = blues,
                             poolAmount = obj.optString("poolAmount"),
                             salesAmount = obj.optString("salesAmount"),
-                            firstPrizeCount = obj.optString("firstPrizeCount"),
+                            firstPrizeCount = obj.optInt("firstPrizeCount", 0),
                             firstPrizeAmount = obj.optString("firstPrizeAmount"),
                             isLiveData = obj.optBoolean("isLiveData", true)
                         )
