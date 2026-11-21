@@ -65,5 +65,6 @@ dependencies {
     implementation(libs.androidx.media3.ui)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.coroutines.android)
-    debugImplementation(libs.androidx.ui.tooling)
+    implementation(libs.androidx.work.runtime.ktx)
+debugImplementation(libs.androidx.ui.tooling)
 }
