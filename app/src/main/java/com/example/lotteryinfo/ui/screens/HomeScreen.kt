@@ -276,12 +276,12 @@ lastSyncTime = lastSyncTime,
                                                 val issue = parts[1].trim()
                                                 val datePart = parts[2].trim()
                                                 val nums = parts[3].split(",").mapNotNull {
-                                                    it.trim().takeIf { s -> s.length == 1 && s[0].isDigit() }
+                                                    it.trim().takeIf { s -> s.length == 1 && s[0].isDigit() }?.toIntOrNull()
                                                 }
                                                 val expectedCount = if (type == LotteryType.PL5) 5 else 3
                                                 if (type != null && issue.isNotEmpty() && nums.size == expectedCount) {
                                                     val drawDate = if (datePart.isNotEmpty()) "$year-$datePart" else ""
-                                                    val draw = LotteryDraw(type, issue, drawDate, nums, emptyList(), "新浪")
+                                                    val draw = LotteryDraw(type, issue, drawDate, nums, emptyList(), "新浪", "", 0, "")
                                                     LotteryRepository.updateFastLatest(draw, nowTime)
                                                     updatedAny = true
                                                 }
