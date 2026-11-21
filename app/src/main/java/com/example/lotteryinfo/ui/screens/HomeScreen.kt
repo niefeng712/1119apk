@@ -77,22 +77,51 @@ fun HomeScreen(
     LaunchedEffect(refreshTrigger) {
       if (refreshTrigger > 0) sinaSyncTrigger++
         isLoading = true
-        val res = LotteryRepository.fetchLatestFastRace()
-        draws = res.draws
-        statusText = res.statusMessage
+        val snapshot = LotteryRepository.getAllLatestSnapshot()
+        if (snapshot.isNotEmpty()) {
+            draws = snapshot
+            val nowTime = formatBeijingTime()
+            lastSyncTime = nowTime
+            statusText = if (LotteryType.entries.all { LotteryRepository.isUpdatedForToday(it) }) {
+                "今日开奖已全部更新（新浪同步 $nowTime）"
+            } else {
+                "新浪同步中..."
+            }
+        } else {
+            val res = LotteryRepository.fetchLatestAll()
+            draws = res.draws
+            statusText = res.statusMessage
+        }
         isLoading = false
 lastSyncTime = formatBeijingTime()
     }
     LaunchedEffect(Unit) {
         while (true) {
+            if (LotteryType.entries.all { LotteryRepository.isUpdatedForToday(it) }) {
+                val nowTime = formatBeijingTime()
+                lastSyncTime = nowTime
+                statusText = "今日开奖已全部更新（新浪同步 $nowTime）"
+                break
+            }
             val cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Shanghai"))
             val minutes = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
         val intervalMs = if (minutes in (21 * 60 + 14)..(21 * 60 + 40)) 8_000L else 60_000L    
             delay(intervalMs)
             if (minutes in (21 * 60 + 14)..(21 * 60 + 40)) sinaSyncTrigger++
-            val res = LotteryRepository.fetchLatestFastRace()
-            draws = res.draws
-            statusText = res.statusMessage
+            if (LotteryType.entries.all { LotteryRepository.isUpdatedForToday(it) }) {
+                val nowTime = formatBeijingTime()
+                lastSyncTime = nowTime
+                statusText = "今日开奖已全部更新（新浪同步 $nowTime）"
+                break
+            }
+            val snapshot = LotteryRepository.getAllLatestSnapshot()
+            if (snapshot.isNotEmpty()) {
+                draws = snapshot
+            } else {
+                val res = LotteryRepository.fetchLatestAll()
+                draws = res.draws
+                statusText = res.statusMessage
+            }
 lastSyncTime = formatBeijingTime()
         }
     }
@@ -161,8 +190,129 @@ lastSyncTime = lastSyncTime,
             }
         }
     }
-  AndroidView(modifier = Modifier.size(1.dp).alpha(0f), factory = { ctx -> WebView(ctx).apply { settings.javaScriptEnabled = true; webViewClient = object : WebViewClient() { override fun onPageFinished(view: WebView?, url: String?) { super.onPageFinished(view, url); view?.evaluateJavascript("(function(){var t=document.body.innerText||'';var r=[];var m1=t.match(/福彩3D[\\s\\S]{0,120}?(20\\d{5}|\\d{5,7})期[\\s\\S]{0,80}?(\\d[\\s,]+\\d[\\s,]+\\d)/);if(m1)r.push('FC3D:'+m1[1]+'|'+m1[2]);var m2=t.match(/排列[3三][\\s\\S]{0,120}?(20\\d{5}|\\d{5,7})期[\\s\\S]{0,80}?(\\d[\\s,]+\\d[\\s,]+\\d)/);if(m2)r.push('PL3:'+m2[1]+'|'+m2[2]);var m3=t.match(/排列[5五][\\s\\S]{0,120}?(20\\d{5}|\\d{5,7})期[\\s\\S]{0,80}?(\\d[\\s,]+\\d[\\s,]+\\d[\\s,]+\\d[\\s,]+\\d)/);if(m3)r.push('PL5:'+m3[1]+'|'+m3[2]);return r.join(';');})()") { raw -> val s = raw?.trim('"') ?: ""; if (s.isNotBlank() && s != "null") { val tm = mapOf("FC3D" to (LotteryType.FC3D to 3), "PL3" to (LotteryType.PL3 to 3), "PL5" to (LotteryType.PL5 to 5)); var ndList = draws; var changed = false; s.split(";").forEach { item -> val idx = item.indexOf(':'); if (idx > 0) { val info = tm[item.substring(0, idx)]; val parts = item.substring(idx + 1).split("|"); if (info != null && parts.size == 2) { val issue = parts[0].trim(); val nums = parts[1].trim().split(Regex("[,\\s]+")).mapNotNull { it.toIntOrNull() }; if (issue.isNotBlank() && nums.size == info.second) { val cur = ndList.firstOrNull { it.lotteryType == info.first }?.issue ?: ""; if (LotteryRepository.normalizeIssue(issue) > LotteryRepository.normalizeIssue(cur)) { val nd = LotteryDraw(info.first, issue, "今日极速", nums, emptyList(), "新浪极速", "", 0, ""); LotteryRepository.updateFastLatest(nd); ndList = ndList.map { if (it.lotteryType == info.first) nd else it }; changed = true } } } } }; if (changed) { draws = ndList; statusText = "极速开奖同步成功" }; lastSyncTime = formatBeijingTime() } } } }; loadUrl("https://lotto.sina.cn/open") } }, update = { w -> if (w.tag != sinaSyncTrigger) { w.tag = sinaSyncTrigger; w.loadUrl("https://lotto.sina.cn/open") } })  
-        AndroidView(modifier = Modifier.size(1.dp).alpha(0f), factory = { ctx -> WebView(ctx).apply { settings.javaScriptEnabled = true; settings.domStorageEnabled = true; webViewClient = object : WebViewClient() { override fun onPageFinished(view: WebView?, url: String?) { super.onPageFinished(view, url); view?.postDelayed({ view.evaluateJavascript("(function(){var t=document.body.innerText||'';var r=[];var m1=t.match(/福彩3D[\\s\\S]{0,120}?(20\\d{5}|\\d{5,7})期?[\\s\\S]{0,80}?(\\d[\\s,]+\\d[\\s,]+\\d)/);if(m1)r.push('FC3D:'+m1[1]+'|'+m1[2]);var m2=t.match(/排列[3三][\\s\\S]{0,120}?(20\\d{5}|\\d{5,7})期?[\\s\\S]{0,80}?(\\d[\\s,]+\\d[\\s,]+\\d)/);if(m2)r.push('PL3:'+m2[1]+'|'+m2[2]);var m3=t.match(/排列[5五][\\s\\S]{0,120}?(20\\d{5}|\\d{5,7})期?[\\s\\S]{0,80}?(\\d[\\s,]+\\d[\\s,]+\\d[\\s,]+\\d[\\s,]+\\d)/);if(m3)r.push('PL5:'+m3[1]+'|'+m3[2]);return r.join(';');})()") { raw -> val s = raw?.trim('"') ?: ""; if (s.isNotBlank() && s != "null") { val tm = mapOf("FC3D" to (LotteryType.FC3D to 3), "PL3" to (LotteryType.PL3 to 3), "PL5" to (LotteryType.PL5 to 5)); var ndList = draws; var changed = false; s.split(";").forEach { item -> val idx = item.indexOf(':'); if (idx > 0) { val info = tm[item.substring(0, idx)]; val parts = item.substring(idx + 1).split("|"); if (info != null && parts.size == 2) { val issue = parts[0].trim(); val nums = parts[1].trim().split(Regex("[,\\s]+")).mapNotNull { it.toIntOrNull() }; if (issue.isNotBlank() && nums.size == info.second) { val cur = ndList.firstOrNull { it.lotteryType == info.first }?.issue ?: ""; if (LotteryRepository.normalizeIssue(issue) > LotteryRepository.normalizeIssue(cur)) { val nd = LotteryDraw(info.first, issue, "今日极速", nums, emptyList(), "中彩网极速", "", 0, "", true); LotteryRepository.updateFastLatest(nd); ndList = ndList.map { if (it.lotteryType == info.first) nd else it }; changed = true } } } } }; if (changed) { draws = ndList; statusText = "极速开奖同步成功"; lastSyncTime = formatBeijingTime() } } } }, 1500L) } }; loadUrl("https://www.zhcw.com/kjxx/") } }, update = { w -> if (w.tag != sinaSyncTrigger) { w.tag = sinaSyncTrigger; w.loadUrl("https://www.zhcw.com/kjxx/") } })
+        AndroidView(
+            modifier = Modifier.size(1.dp).alpha(0f),
+            factory = { ctx ->
+                WebView(ctx).apply {
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    webViewClient = object : WebViewClient() {
+                        override fun onPageFinished(view: WebView?, url: String?) {
+                            super.onPageFinished(view, url)
+                            view?.postDelayed({
+                                val js = """
+                                    (function() {
+                                        var others = ['双色球', '大乐透', '快乐8', '七星彩', '七乐彩'];
+                                        var targets = [
+                                            { key: 'FC3D', names: ['福彩3D'], count: 3, exclude: ['排列3', '排列三', '排列5', '排列五'] },
+                                            { key: 'PL3', names: ['排列3', '排列三'], count: 3, exclude: ['福彩3D', '排列5', '排列五'] },
+                                            { key: 'PL5', names: ['排列5', '排列五'], count: 5, exclude: ['福彩3D', '排列3', '排列三'] }
+                                        ];
+                                        var allEls = Array.prototype.slice.call(document.querySelectorAll('li, tr, div, section'));
+                                        var out = [];
+                                        targets.forEach(function(t) {
+                                            var candidates = allEls.filter(function(el) {
+                                                var txt = (el.innerText || '').trim();
+                                                if (!txt) return false;
+                                                var hasName = t.names.some(function(n) { return txt.indexOf(n) !== -1; });
+                                                if (!hasName) return false;
+                                                var hasOther = others.concat(t.exclude).some(function(o) { return txt.indexOf(o) !== -1; });
+                                                return !hasOther;
+                                            });
+                                            if (!candidates.length) return;
+                                            candidates.sort(function(a, b) {
+                                                return (a.innerText || '').length - (b.innerText || '').length;
+                                            });
+                                            for (var ci = 0; ci < candidates.length; ci++) {
+                                                var card = candidates[ci];
+                                                var cardText = card.innerText || '';
+                                                var issueMatch = cardText.match(/(202\d{4}|2\d{4})\s*期/);
+                                                if (!issueMatch) continue;
+                                                var dateMatch = cardText.match(/(\d{2}-\d{2})/);
+                                                var balls = null;
+                                                var nodes = [card].concat(Array.prototype.slice.call(card.querySelectorAll('*')));
+                                                for (var ni = 0; ni < nodes.length; ni++) {
+                                                    var parent = nodes[ni];
+                                                    var children = Array.prototype.slice.call(parent.children || []);
+                                                    if (children.length !== t.count) continue;
+                                                    var ok = true;
+                                                    var nums = [];
+                                                    for (var ki = 0; ki < children.length; ki++) {
+                                                        var ch = children[ki];
+                                                        if (ch.children && ch.children.length > 0) { ok = false; break; }
+                                                        var val = (ch.textContent || '').trim();
+                                                        if (!/^[0-9]$/.test(val)) { ok = false; break; }
+                                                        nums.push(val);
+                                                    }
+                                                    if (ok && nums.length === t.count) {
+                                                        balls = nums;
+                                                        break;
+                                                    }
+                                                }
+                                                if (balls) {
+                                                    out.push(t.key + '|' + issueMatch[1] + '|' + (dateMatch ? dateMatch[1] : '') + '|' + balls.join(','));
+                                                    break;
+                                                }
+                                            }
+                                        });
+                                        return out.join(';');
+                                    })()
+                                """.trimIndent()
+                                view.evaluateJavascript(js) { res ->
+                                    val cleaned = res?.trim()?.removeSurrounding("\"") ?: ""
+                                    if (cleaned.isNotEmpty() && cleaned != "null") {
+                                        val nowTime = formatBeijingTime()
+                                        val year = Calendar.getInstance(TimeZone.getTimeZone("Asia/Shanghai")).get(Calendar.YEAR)
+                                        var updatedAny = false
+                                        cleaned.split(";").forEach { item ->
+                                            val parts = item.split("|")
+                                            if (parts.size == 4) {
+                                                val type = when (parts[0]) {
+                                                    "FC3D" -> LotteryType.FC3D
+                                                    "PL3" -> LotteryType.PL3
+                                                    "PL5" -> LotteryType.PL5
+                                                    else -> null
+                                                }
+                                                val issue = parts[1].trim()
+                                                val datePart = parts[2].trim()
+                                                val nums = parts[3].split(",").mapNotNull {
+                                                    it.trim().takeIf { s -> s.length == 1 && s[0].isDigit() }
+                                                }
+                                                val expectedCount = if (type == LotteryType.PL5) 5 else 3
+                                                if (type != null && issue.isNotEmpty() && nums.size == expectedCount) {
+                                                    val drawDate = if (datePart.isNotEmpty()) "$year-$datePart" else ""
+                                                    val draw = LotteryDraw(type, issue, drawDate, nums, emptyList(), "新浪")
+                                                    LotteryRepository.updateFastLatest(draw, nowTime)
+                                                    updatedAny = true
+                                                }
+                                            }
+                                        }
+                                        if (updatedAny) {
+                                            draws = LotteryRepository.getAllLatestSnapshot()
+                                            lastSyncTime = nowTime
+                                            statusText = if (LotteryType.entries.all { LotteryRepository.isUpdatedForToday(it) }) {
+                                                "今日开奖已全部更新（新浪同步 $nowTime）"
+                                            } else {
+                                                "新浪同步成功"
+                                            }
+                                        }
+                                    }
+                                }
+                            }, 1500L)
+                        }
+                    }
+                    loadUrl("https://lotto.sina.cn/open/")
+                }
+            },
+            update = { wv ->
+                if (wv.tag != sinaSyncTrigger) {
+                    wv.tag = sinaSyncTrigger
+                    if (!LotteryType.entries.all { LotteryRepository.isUpdatedForToday(it) }) {
+                        wv.reload()
+                    }
+                }
+            }
+        )
     }
 }
 
