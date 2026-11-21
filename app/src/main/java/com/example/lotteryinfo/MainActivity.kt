@@ -71,12 +71,25 @@ import androidx.compose.runtime.rememberCoroutineScope
 import com.example.lotteryinfo.update.AppUpdater
 import com.example.lotteryinfo.update.UpdateInfo
 import kotlinx.coroutines.launch
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import com.example.lotteryinfo.data.LotteryRepository
+import com.example.lotteryinfo.data.LotterySyncWorker
+import java.util.concurrent.TimeUnit
 
 import com.example.lotteryinfo.ui.theme.LotteryInfoTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+LotteryRepository.init(applicationContext)
+        val syncRequest = PeriodicWorkRequestBuilder<LotterySyncWorker>(15, TimeUnit.MINUTES).build()
+        WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
+            "lottery_bg_sync",
+            ExistingPeriodicWorkPolicy.KEEP,
+            syncRequest
+        )
         enableEdgeToEdge()
         setContent {
             LotteryInfoTheme {
