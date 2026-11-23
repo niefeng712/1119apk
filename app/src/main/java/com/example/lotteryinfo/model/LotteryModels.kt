@@ -57,6 +57,24 @@ data class LotteryDraw(
     val isLiveData: Boolean = false
 )
 
+/** 新浪快讯数据的标记（只有号码，奖池/销量/奖级稍后由官方接口补齐） */
+const val SINA_SOURCE_MARK = "新浪"
+
+val LotteryDraw.isSinaFast: Boolean get() = poolAmount == SINA_SOURCE_MARK
+
+val LotteryDraw.isSample: Boolean get() = drawDate.contains("示例")
+
+/** 是否带有官方奖级明细（销量、一等奖） */
+val LotteryDraw.hasPrizeDetail: Boolean
+    get() = !isSinaFast && salesAmount.isNotBlank() && salesAmount != "--"
+
+/** 空值、新浪标记统一显示为 -- */
+fun String.orDash(): String = if (isBlank() || this == SINA_SOURCE_MARK) "--" else this
+
+/** 是否有可展示的奖池金额（数字型玩法为固定派奖，不展示） */
+val LotteryDraw.displayPool: String?
+    get() = poolAmount.takeIf { it.isNotBlank() && it != "--" && it != SINA_SOURCE_MARK && it != "固定派奖" }
+
 data class LiveChannel(
     val id: String,
     val title: String,

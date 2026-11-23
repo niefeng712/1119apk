@@ -5,6 +5,7 @@ import com.example.lotteryinfo.model.LiveChannel
 import com.example.lotteryinfo.model.LotteryDraw
 import com.example.lotteryinfo.model.LotteryOrg
 import com.example.lotteryinfo.model.LotteryType
+import com.example.lotteryinfo.model.SINA_SOURCE_MARK
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -94,11 +95,27 @@ private fun currentBeijingDate(): String {
     }
 
     fun updateFastLatest(draw: LotteryDraw, syncTime: String = "") {
+        // 离线示例数据不写入缓存，避免污染“最新一期”
+        if (draw.drawDate.contains("示例")) return
         val time = syncTime.ifBlank { currentBeijingTime() }
         val date = currentBeijingDate()
         synchronized(fastLatestMap) {
-            val cur = fastLatestMap[draw.lotteryType]?.issue?.let { normalizeIssue(it) } ?: 0L
-            if (normalizeIssue(draw.issue) >= cur) {
+            val existing = fastLatestMap[draw.lotteryType]
+            val cur = existing?.issue?.let { normalizeIssue(it) } ?: 0L
+            val incoming = normalizeIssue(draw.issue)
+            // 同一期：新浪快讯（只有号码）不能覆盖官方完整数据（奖池、销量、一等奖）
+            if (existing != null && incoming == cur &&
+                draw.poolAmount == SINA_SOURCE_MARK && existing.poolAmount != SINA_SOURCE_MARK
+            ) {
+                syncTimeMap[draw.lotteryType] = time
+                syncDateMap[draw.lotteryType] = date
+                appContext?.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)?.edit()
+                    ?.putString("sync_time_${draw.lotteryType.name}", time)
+                    ?.putString("sync_date_${draw.lotteryType.name}", date)
+                    ?.apply()
+                return
+            }
+            if (incoming >= cur) {
                 fastLatestMap[draw.lotteryType] = draw
                 syncTimeMap[draw.lotteryType] = time
                 syncDateMap[draw.lotteryType] = date
