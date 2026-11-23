@@ -12,7 +12,7 @@ class LotterySyncWorker(
 
     override suspend fun doWork(): Result {
         LotteryRepository.init(applicationContext)
-        if (LotteryType.entries.all { LotteryRepository.isUpdatedForToday(it) }) {
+        if (LotteryType.entries.all { LotteryRepository.isDoneForToday(it) }) {
             return Result.success()
         }
         val result = LotteryRepository.fetchLatestAll()

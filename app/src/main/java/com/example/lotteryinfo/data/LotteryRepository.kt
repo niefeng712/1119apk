@@ -132,6 +132,16 @@ private fun currentBeijingDate(): String {
         }
     }
 
+    /** 北京时间今天是否为该彩种开奖日 */
+    fun isDrawDayToday(type: LotteryType): Boolean {
+        val cal = java.util.Calendar.getInstance(TimeZone.getTimeZone("Asia/Shanghai"))
+        return cal.get(java.util.Calendar.DAY_OF_WEEK) in type.drawDays
+    }
+
+    /** 今日无需再同步：今天不开奖，或今天的开奖已更新 */
+    fun isDoneForToday(type: LotteryType): Boolean =
+        !isDrawDayToday(type) || isUpdatedForToday(type)
+
     fun isUpdatedForToday(type: LotteryType): Boolean {
         synchronized(fastLatestMap) {
             val draw = fastLatestMap[type] ?: return false
@@ -341,6 +351,19 @@ private fun currentBeijingDate(): String {
                 val rawNums = item.optString("lotteryDrawResult")
                     .split(" ", ",", "+")
                     .mapNotNull { it.trim().toIntOrNull() }
+                // 乐透型（大乐透）：前 redCount 个为前区红球，其后 blueCount 个为后区蓝球
+                if (type.blueCount > 0) {
+                    if (rawNums.size >= type.redCount + type.blueCount) {
+                        list.add(
+                            buildSportteryDraw(
+                                type, item, issue, date,
+                                rawNums.take(type.redCount),
+                                rawNums.drop(type.redCount).take(type.blueCount)
+                            )
+                        )
+                    }
+                    continue
+                }
                 val (reds, blues) = rawNums to emptyList<Int>()
                 val pool = formatMoney(item.optString("poolBalanceAfterdraw").replace(",", ""))
                 val sales = formatMoney(item.optString("totalSaleAmount").replace(",", ""))
@@ -371,6 +394,39 @@ private fun currentBeijingDate(): String {
         }
     }
 
+    /** 构造体彩开奖记录（奖池、销量、一等奖字段与数字型玩法解析方式一致） */
+    private fun buildSportteryDraw(
+        type: LotteryType,
+        item: JSONObject,
+        issue: String,
+        date: String,
+        reds: List<Int>,
+        blues: List<Int>
+    ): LotteryDraw {
+        val pool = formatMoney(item.optString("poolBalanceAfterdraw").replace(",", ""))
+        val sales = formatMoney(item.optString("totalSaleAmount").replace(",", ""))
+        var firstCount = 0
+        var firstMoney = "--"
+        val prizes = item.optJSONArray("prizeLevelList")
+        if (prizes != null && prizes.length() > 0) {
+            val p1 = prizes.getJSONObject(0)
+            firstCount = p1.optString("stakeCount").replace(",", "").toIntOrNull() ?: 0
+            firstMoney = formatMoney(p1.optString("stakeAmount").replace(",", ""))
+        }
+        return LotteryDraw(
+            lotteryType = type,
+            issue = issue,
+            drawDate = date,
+            redBalls = reds,
+            blueBalls = blues,
+            poolAmount = pool,
+            salesAmount = sales,
+            firstPrizeCount = firstCount,
+            firstPrizeAmount = firstMoney,
+            isLiveData = true
+        )
+    }
+
     private fun formatMoney(raw: String): String {
         val num = raw.trim().toDoubleOrNull() ?: return if (raw.isBlank()) "固定派奖" else raw
         return when {
@@ -394,6 +450,9 @@ private fun currentBeijingDate(): String {
             LotteryType.PL5 -> listOf(
                 LotteryDraw(LotteryType.PL5, "2026310", "2026-11-17 (示例)", listOf(3, 6, 2, 9, 1), emptyList(), "固定派奖", "0.21 亿元", 12, "10.0 万元")
          )
+            LotteryType.DLT -> listOf(
+                LotteryDraw(LotteryType.DLT, "26133", "2026-11-21 (示例)", listOf(10, 11, 25, 30, 32), listOf(9, 10), "--", "--", 0, "--")
+            )
         }
     }
 }

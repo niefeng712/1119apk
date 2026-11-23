@@ -82,7 +82,7 @@ fun HomeScreen(
             draws = snapshot
             val nowTime = formatBeijingTime()
             lastSyncTime = nowTime
-            statusText = if (LotteryType.entries.all { LotteryRepository.isUpdatedForToday(it) }) {
+            statusText = if (LotteryType.entries.all { LotteryRepository.isDoneForToday(it) }) {
                 "今日开奖已全部更新（新浪同步 $nowTime）"
             } else {
                 "新浪同步中..."
@@ -97,7 +97,7 @@ lastSyncTime = formatBeijingTime()
     }
     LaunchedEffect(Unit) {
         while (true) {
-            if (LotteryType.entries.all { LotteryRepository.isUpdatedForToday(it) }) {
+            if (LotteryType.entries.all { LotteryRepository.isDoneForToday(it) }) {
                 val nowTime = formatBeijingTime()
                 lastSyncTime = nowTime
                 statusText = "今日开奖已全部更新（新浪同步 $nowTime）"
@@ -108,7 +108,7 @@ lastSyncTime = formatBeijingTime()
         val intervalMs = if (minutes in (21 * 60 + 14)..(21 * 60 + 40)) 8_000L else 60_000L    
             delay(intervalMs)
             if (minutes in (21 * 60 + 14)..(21 * 60 + 40)) sinaSyncTrigger++
-            if (LotteryType.entries.all { LotteryRepository.isUpdatedForToday(it) }) {
+            if (LotteryType.entries.all { LotteryRepository.isDoneForToday(it) }) {
                 val nowTime = formatBeijingTime()
                 lastSyncTime = nowTime
                 statusText = "今日开奖已全部更新（新浪同步 $nowTime）"
@@ -202,11 +202,12 @@ lastSyncTime = lastSyncTime,
                             view?.postDelayed({
                                 val js = """
                                     (function() {
-                                        var others = ['双色球', '大乐透', '快乐8', '七星彩', '七乐彩'];
+                                        var others = ['双色球', '快乐8', '七星彩', '七乐彩'];
                                         var targets = [
-                                            { key: 'FC3D', names: ['福彩3D'], count: 3, exclude: ['排列3', '排列三', '排列5', '排列五'] },
-                                            { key: 'PL3', names: ['排列3', '排列三'], count: 3, exclude: ['福彩3D', '排列5', '排列五'] },
-                                            { key: 'PL5', names: ['排列5', '排列五'], count: 5, exclude: ['福彩3D', '排列3', '排列三'] }
+                                            { key: 'FC3D', names: ['福彩3D'], count: 3, exclude: ['大乐透', '排列3', '排列三', '排列5', '排列五'] },
+                                            { key: 'PL3', names: ['排列3', '排列三'], count: 3, exclude: ['大乐透', '福彩3D', '排列5', '排列五'] },
+                                            { key: 'PL5', names: ['排列5', '排列五'], count: 5, exclude: ['大乐透', '福彩3D', '排列3', '排列三'] },
+                                            { key: 'DLT', names: ['大乐透'], count: 7, twoDigit: true, exclude: ['福彩3D', '排列3', '排列三', '排列5', '排列五'] }
                                         ];
                                         var allEls = Array.prototype.slice.call(document.querySelectorAll('li, tr, div, section'));
                                         var out = [];
@@ -241,7 +242,8 @@ lastSyncTime = lastSyncTime,
                                                         var ch = children[ki];
                                                         if (ch.children && ch.children.length > 0) { ok = false; break; }
                                                         var val = (ch.textContent || '').trim();
-                                                        if (!/^[0-9]$/.test(val)) { ok = false; break; }
+                                                        var numRe = t.twoDigit ? /^[0-9]{2}$/ : /^[0-9]$/;
+                                                        if (!numRe.test(val)) { ok = false; break; }
                                                         nums.push(val);
                                                     }
                                                     if (ok && nums.length === t.count) {
@@ -271,17 +273,34 @@ lastSyncTime = lastSyncTime,
                                                     "FC3D" -> LotteryType.FC3D
                                                     "PL3" -> LotteryType.PL3
                                                     "PL5" -> LotteryType.PL5
+                                                    "DLT" -> LotteryType.DLT
                                                     else -> null
                                                 }
                                                 val issue = parts[1].trim()
                                                 val datePart = parts[2].trim()
+                                                val isDlt = type == LotteryType.DLT
                                                 val nums = parts[3].split(",").mapNotNull {
-                                                    it.trim().takeIf { s -> s.length == 1 && s[0].isDigit() }?.toIntOrNull()
+                                                    if (isDlt) {
+                                                        // 大乐透：两位数号码
+                                                        it.trim().takeIf { s -> s.length == 2 && s.all { c -> c.isDigit() } }?.toIntOrNull()
+                                                    } else {
+                                                        it.trim().takeIf { s -> s.length == 1 && s[0].isDigit() }?.toIntOrNull()
+                                                    }
                                                 }
-                                                val expectedCount = if (type == LotteryType.PL5) 5 else 3
-                                                if (type != null && issue.isNotEmpty() && nums.size == expectedCount) {
+                                                val expectedCount = when (type) {
+                                                    LotteryType.PL5 -> 5
+                                                    LotteryType.DLT -> 7
+                                                    else -> 3
+                                                }
+                                                // 大乐透号码范围校验：前区 1–35，后区 1–12
+                                                val rangeOk = !isDlt || (nums.size == 7 &&
+                                                    nums.take(5).all { n -> n in 1..35 } &&
+                                                    nums.drop(5).all { n -> n in 1..12 })
+                                                if (type != null && issue.isNotEmpty() && nums.size == expectedCount && rangeOk) {
                                                     val drawDate = if (datePart.isNotEmpty()) "$year-$datePart" else ""
-                                                    val draw = LotteryDraw(type, issue, drawDate, nums, emptyList(), "新浪", "", 0, "")
+                                                    val reds = if (isDlt) nums.take(5) else nums
+                                                    val blues = if (isDlt) nums.drop(5) else emptyList()
+                                                    val draw = LotteryDraw(type, issue, drawDate, reds, blues, "新浪", "", 0, "")
                                                     LotteryRepository.updateFastLatest(draw, nowTime)
                                                     updatedAny = true
                                                 }
@@ -290,7 +309,7 @@ lastSyncTime = lastSyncTime,
                                         if (updatedAny) {
                                             draws = LotteryRepository.getAllLatestSnapshot()
                                             lastSyncTime = nowTime
-                                            statusText = if (LotteryType.entries.all { LotteryRepository.isUpdatedForToday(it) }) {
+                                            statusText = if (LotteryType.entries.all { LotteryRepository.isDoneForToday(it) }) {
                                                 "今日开奖已全部更新（新浪同步 $nowTime）"
                                             } else {
                                                 "新浪同步成功"
@@ -307,7 +326,7 @@ lastSyncTime = lastSyncTime,
             update = { wv ->
                 if (wv.tag != sinaSyncTrigger) {
                     wv.tag = sinaSyncTrigger
-                    if (!LotteryType.entries.all { LotteryRepository.isUpdatedForToday(it) }) {
+                    if (!LotteryType.entries.all { LotteryRepository.isDoneForToday(it) }) {
                         wv.reload()
                     }
                 }
